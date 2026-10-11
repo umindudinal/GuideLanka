@@ -2,25 +2,26 @@
 
 <div align="center">
 
+[![Live API](https://img.shields.io/badge/API-Live_on_Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://guide-lanka-backend.vercel.app)
 [![Node.js](https://img.shields.io/badge/Node.js-v20+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Express.js](https://img.shields.io/badge/Express.js-v5.0-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
 [![React](https://img.shields.io/badge/React-v19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![Flutter](https://img.shields.io/badge/Flutter-v3.10+-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4.0-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vite](https://img.shields.io/badge/Vite-v8.0-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Leaflet](https://img.shields.io/badge/Leaflet-GIS_Maps-199900?style=for-the-badge&logo=leaflet&logoColor=white)](https://leafletjs.com/)
+[![Leaflet](https://img.shields.io/badge/Leaflet-GIS_Mapping-199900?style=for-the-badge&logo=leaflet&logoColor=white)](https://leafletjs.com/)
 
 <p align="center">
-  <b>A unified, intelligent ecosystem modernizing Sri Lanka's wildlife safari operations.</b><br>
-  Connecting Tourists, Safari Drivers, and Department of Wildlife Conservation (DWC) Authorities through real-time GIS tracking, AI-assisted route optimization (S2R), instant emergency response, and verified bookings.
+  <b>A unified, real-time ecosystem modernizing Sri Lanka's wildlife safari operations.</b><br>
+  Connecting Tourists, Safari Drivers, and Department of Wildlife Conservation (DWC) Authorities through real-time GIS tracking, AI-assisted Sightings-to-Route (S2R) road optimization, instant emergency response with click-to-call, and verified bookings.
 </p>
 
 [Key Features](#-key-features) •
 [Architecture](#-system-architecture) •
-[S2R Algorithm](#-s2r-sightings-to-route-algorithm) •
-[Modules](#-system-modules) •
+[S2R Routing Algorithm](#-s2r-sightings-to-route-algorithm) •
+[System Modules](#-system-modules) •
 [Quick Start](#-installation--setup-guide) •
+[Mobile APK Build](#-mobile-apk-build-guide) •
 [API Reference](#-api-endpoints-overview)
 
 ---
@@ -29,13 +30,13 @@
 
 ## 📖 Overview
 
-National Parks in Sri Lanka (such as **Yala**, **Wilpattu**, **Udawalawe**, and **Minneriya**) host some of the world's highest densities of leopards, elephants, and endemic wildlife. However, modern safari tourism faces critical operational hurdles:
-- **Track Congestion & Animal Disturbance**: Excessive vehicle crowding around sudden wildlife sightings.
-- **Safety & Geofencing**: Safari vehicles accidentally straying into strict natural reserves or buffer zones.
-- **Unverified Operators**: Lack of standardized driver credential verification and fair booking mechanisms for tourists.
-- **Emergency Gaps**: Delay in SOS dispatch during mechanical failures or wildlife encounters.
+National Parks in Sri Lanka (such as **Yala**, **Wilpattu**, **Udawalawe**, and **Minneriya**) host some of the world's highest densities of leopards, Asian elephants, and endemic wildlife. However, traditional safari operations face critical modern challenges:
+- **Track Congestion & Animal Disturbance**: Excessive vehicle crowding around sudden wildlife sightings causing stress to animals.
+- **Safety & Geofencing**: Safari vehicles accidentally straying into strict nature reserves or restricted core zones.
+- **Driver Verification**: Tourists struggle to identify verified, licensed safari guides with standardized pricing.
+- **Emergency Dispatch Gaps**: Delays in ranger notification during vehicle breakdowns, medical emergencies, or lost routes.
 
-**GuideLanka** solves these challenges by combining four tightly integrated applications powered by real-time GPS telemetry, push notifications, and multi-objective routing algorithms.
+**GuideLanka** resolves these bottlenecks by combining four synchronized platforms powered by real-time GPS telemetry, push notifications, and multi-objective routing algorithms.
 
 ---
 
@@ -44,33 +45,33 @@ National Parks in Sri Lanka (such as **Yala**, **Wilpattu**, **Udawalawe**, and 
 ```mermaid
 flowchart TD
     subgraph Clients["User & Client Layer"]
-        TouristApp["🌍 Tourist Web App<br/>(React 19 + Vite + Tailwind)"]
-        AuthorityDash["🛡️ Park Authority Dashboard<br/>(React 19 + Vite + Leaflet)"]
-        DriverApp["📱 Safari Driver Mobile App<br/>(Flutter + Geolocator)"]
+        TouristApp["🌍 Tourist Web App<br/>(React 19 + Vite + Tailwind CSS)"]
+        AuthorityDash["🛡️ Park Authority Command Dashboard<br/>(React 19 + Leaflet GIS + Realtime Audio)"]
+        DriverApp["📱 Safari Driver Mobile App<br/>(Flutter + Geolocator + flutter_map)"]
     end
 
     subgraph Gateways["Communication & Notification Layer"]
-        OneSignal["🔔 OneSignal Push"]
-        NotifyLK["📩 NotifyLK SMS OTP"]
-        NodeMailer["📧 Nodemailer SMTP"]
+        OneSignal["🔔 OneSignal Push Notifications"]
+        NotifyLK["📩 NotifyLK SMS OTP Gateway"]
+        NodeMailer["📧 Nodemailer SMTP Email Service"]
     end
 
-    subgraph BackendCore["GuideLanka Core API (Node.js / Express 5)"]
+    subgraph BackendCore["GuideLanka Core API (Node.js / Express 5 on Vercel)"]
         Router["🛣️ Express MVC REST Router"]
-        AuthService["🔐 JWT & Role Auth Engine"]
-        S2REngine["🧠 S2R Route Optimizer"]
-        AlertEngine["🚨 Geofence & SOS Engine"]
-        ChatEngine["💬 Live Messaging Service"]
+        AuthService["🔐 JWT & RBAC Engine"]
+        S2REngine["🧠 S2R Road Routing Engine"]
+        AlertEngine["🚨 Geofence & Emergency Alert Engine"]
+        ChatEngine["💬 Real-Time Messaging Service"]
     end
 
-    subgraph DataStore["Data & Storage Layer (Supabase)"]
-        Postgres[("🐘 Supabase PostgreSQL<br/>(Users, Bookings, Sightings, Routes)")]
-        Storage[("🗄️ Supabase Storage / Static Uploads<br/>(Driver IDs, Licenses, Photos)")]
+    subgraph DataStore["Data & Storage Layer (Supabase Cloud)"]
+        Postgres[("🐘 PostgreSQL Database<br/>(Users, Profiles, Bookings, Sightings, Alerts, Routes)")]
+        Storage[("🗄️ Supabase Storage / Static Uploads<br/>(Driver Licenses, Vehicle Photos, Avatars)")]
     end
 
-    TouristApp -->|REST / HTTPS| Router
-    AuthorityDash -->|REST / WebSockets| Router
-    DriverApp -->|REST / GPS Stream| Router
+    TouristApp -->|HTTPS / REST| Router
+    AuthorityDash -->|HTTPS / WebSockets / Realtime| Postgres
+    DriverApp -->|HTTPS / REST / GPS Stream| Router
 
     Router --> AuthService
     Router --> S2REngine
@@ -92,94 +93,118 @@ flowchart TD
 
 ## 🧠 S2R (Sightings-to-Route) Algorithm
 
-At the core of the system is the **S2R Algorithm**, designed to simultaneously maximize visitor sighting potential while preventing wildlife harassment and track overcrowding:
+At the core of the driver navigation engine is the **S2R Algorithm**, designed to maximize visitor sighting utility while strictly minimizing trail congestion and route deviations:
 
-$$\text{S2R Score} = (S_{\text{recency}} \times 0.5) - (C_{\text{density}} \times 0.3) - (D_{\text{travel}} \times 0.2)$$
+### 1. Species-Specific Time Decay ($TD_i$)
+Animals exhibit distinct movement patterns; hence sightings decay at species-tailored rates:
+
+$$TD_i = \max\left(0, 1 - \frac{t_i}{T_{\max}(\text{species})}\right)$$
+
+| Species | Max Lifespan ($T_{\max}$) | Behavioral Rationale | Animal Weight ($AW_i$) |
+| :--- | :---: | :--- | :---: |
+| 🐘 **Elephant** | **60 mins** | Foraging herds remain in grazing areas longer | `0.70` |
+| 🐆 **Leopard** | **30 mins** | Solitary apex predator moving continuously | `1.00` |
+| 🐻 **Sloth Bear** | **30 mins** | Solitary omnivore roaming across trails | `0.80` |
+| 🦚 **Peacock / Birds** | **20 mins** | High mobility, flight behavior | `0.20` |
+| 🦌 **Deer / Sambar** | **15 mins** | Timid herbivores that flee upon disturbance | `0.30` |
+
+### 2. Sighting Utility ($S_i$)
+Quantifies the observational value of a sighting based on species rarity, freshness, and reporter reliability ($R_i \approx 0.90$):
+
+$$S_i = AW_i \times TD_i \times R_i$$
+
+### 3. Safari Road Graph Network & Dijkstra Routing
+* Road networks are modeled as an interconnected graph $G = (V, E)$ parsed directly from park GeoJSON vector coordinates.
+* Disconnected line segments are dynamically bridged using a 15-meter proximity threshold (`_ensureFullyConnected()`).
+* Dijkstra's shortest-path algorithm calculates the optimal curved path along authentic safari trails, preventing unrealistic straight-line vector cuts across topography.
+
+### 4. Overall S2R Route Score ($U_i$)
+Calculates composite utility balancing wildlife value against congestion and travel distance:
+
+$$U_i = w_s S_i - w_c C_i - w_d D_i$$
 
 Where:
-* **$S_{\text{recency}}$**: Freshness weight of logged wildlife sightings along the segment.
-* **$C_{\text{density}}$**: Live vehicle count currently occupying the track segment.
-* **$D_{\text{travel}}$**: Distance calculated via the Great-Circle (Haversine) metric between current GPS coordinates and destination waypoint:
-
-$$d = 2R \arcsin \left(\sqrt{\sin^2\left(\frac{\Delta \phi}{2}\right) + \cos(\phi_1)\cos(\phi_2)\sin^2\left(\frac{\Delta \lambda}{2}\right)}\right)$$
+* $w_s = 0.5$ (Sighting utility weight)
+* $w_c = 0.3$ (Congestion penalty weight)
+* $w_d = 0.2$ (Normalized road distance weight)
 
 ---
 
-## 🚀 Key Features & Sub-Modules
+## 🚀 System Modules
 
 ### 1. 🛡️ Park Authority Command Dashboard (`/authority-dashboard`)
-Designed for park rangers, wildlife wardens, and administrative authorities:
-* **Live GIS Tracking Map**: Real-time visualization of all active safari jeeps, recent animal coordinates, restricted core zones, and track lines.
-* **SOS & Emergency Incident Center**: Instant popup alerts upon SOS trigger, with 1-click GPS lock and ranger dispatch.
-* **Geofence Enforcement**: Visual breach alerts whenever a vehicle enters protected block zones (e.g., Yala Block 5).
-* **Driver Licensing & Compliance**: Review driver identities, commercial licenses, insurance records, and vehicle approvals.
-* **Tourist & Visitor Analytics**: Historical and live charts for visitor traffic, busy gates, and peak safari hours.
-* **Revenue Tracker**: Track park entry fees, safari commissions, and driver payments.
-* **Dark / Light Mode**: Sleek command-center interface optimized for field operations.
+Dedicated interface for park rangers and administrative wardens:
+* **Live GIS Tracking Map**: Real-time Leaflet visualization of active safari jeeps, live sightings, track routes, and buffer zones.
+* **SOS & Incident Center with Direct Call**:
+  * Displays emergency alerts (e.g. `LOST_ROUTE`, `VEHICLE_BREAKDOWN`, `MEDICAL_EMERGENCY`).
+  * Shows **Driver Name** and **Mobile Phone Number** with an instant **"Call Now"** button (`tel:` link).
+  * 1-click **"View on Maps"** external coordinate locator.
+  * Ranger unit dispatch status tracking (`Ranger En Route` ➔ `Resolved`).
+* **Geofence Enforcement**: Automated audio and visual warnings when a jeep deviates outside authorized park boundaries.
+* **Driver Compliance Review**: Review driver identity documentation, commercial licenses, and vehicle certifications.
+* **Analytics & Revenue**: Track park entry commissions, daily active safaris, and visitor volume.
 
-### 2. 🌍 Tourist Web Experience (`/tourist-web-app`)
-A responsive web platform for domestic and international travelers:
-* **Wildlife Explorer & Sighting Heatmap**: Real-time pins of elephants, leopards, sloth bears, birds, and marine life.
-* **Verified Driver Directory**: Browse certified safari drivers with real user reviews, languages spoken, jeep models, and pricing.
-* **Seamless Safari Booking**: Request customized half-day, full-day, or multi-track safari excursions.
-* **Live Driver Chat**: In-app messaging for pickup coordination and inquiries.
-* **Park Guidelines & Safety Manual**: Interactive guides on park rules, dos & don'ts, photography tips, and wildlife ethics.
-* **Multimedia Wildlife Gallery & FAQ**: High-resolution wildlife showcases and visitor support.
+### 2. 📱 Safari Driver Mobile App (`/driver_mobile`)
+Field application for safari jeep drivers built in Flutter:
+* **Live Safari Radar**: Real-time map displaying recent sightings with remaining lifespan countdown badges.
+* **Turn-by-Turn S2R Road Navigation**: Illuminated neon-blue routes that strictly follow safari road curves.
+* **Interactive Sighting Logger**: Tap or drag-and-drop marker on the map to pinpoint exact animal sighting locations.
+* **Emergency SOS Transmitter**: Broadcasts vehicle GPS coordinates and emergency type directly to ranger control.
+* **Geofencing Safety Guard**: Monitors boundary compliance and triggers automated warnings upon park perimeter exit.
+* **Driver Earnings & Booking Management**: Accept or decline tourist bookings with live chat coordination.
 
-### 3. 📱 Safari Driver Mobile App (`/driver_mobile`)
-A dedicated mobile application for field safari drivers built in Flutter:
-* **Turn-by-Turn S2R Navigation**: Intelligently ranked trails avoiding congestions while targeting active animal areas.
-* **Quick Wildlife Sighting Logger**: One-tap sighting reports with species tags and automated GPS stamping.
-* **Panic SOS Button**: Emergency broadcast with exact vehicle coordinates sent instantly to the ranger control room.
-* **Booking Dispatch Management**: Accept, reject, or manage incoming tourist bookings with trip itinerary tracking.
-* **Driver Performance & Earnings**: Real-time summary of daily revenue, completed trips, and customer ratings.
-* **Direct Tourist Chat**: Instant messaging with assigned passengers.
+### 3. 🌍 Tourist Web Experience (`/tourist-web-app`)
+Responsive web portal for domestic and international travelers:
+* **Wildlife Explorer & Heatmap**: View active animal sightings reported across National Parks.
+* **Certified Driver Directory**: Browse verified drivers with ratings, reviews, pricing, languages, and jeep models.
+* **Direct Booking System**: Book half-day, full-day, or multi-zone safari excursions.
+* **In-App Messaging**: Real-time communication between tourist and assigned safari driver.
+* **Park Safety Manual & Guidelines**: Interactive guidelines on park rules, wildlife ethics, and photography dos & don'ts.
 
-### 4. ⚙️ Central API & Backend Engine (`/backend`)
-* **RESTful MVC Architecture**: Scalable, modular Node.js/Express service.
+### 4. ⚙️ Central Cloud API (`/backend`)
+* **Production Deployment**: Hosted on Vercel at [`https://guide-lanka-backend.vercel.app`](https://guide-lanka-backend.vercel.app).
+* **RESTful MVC Architecture**: Built with Node.js and Express 5.
 * **Database & Auth**: Supabase PostgreSQL with JWT role-based access control (`AUTHORITY`, `DRIVER`, `TOURIST`).
-* **Multi-Channel Alerts**: SMS OTP verification via NotifyLK, push notifications via OneSignal, and confirmation emails via Nodemailer.
-* **Static Storage**: Handles photo verification, avatar uploads, and document attachments.
+* **Multi-Channel Communications**: SMS OTP verification via NotifyLK, push notifications via OneSignal, and automated emails via Nodemailer.
 
 ---
 
 ## 📂 Repository Structure
 
 ```
-GuideLanka-System/
+GuideLanka/
 ├── 📁 authority-dashboard/      # React 19 + Vite Authority Management Dashboard
 │   ├── 📁 src/
-│   │   ├── 📁 components/       # LiveMap, SOSPanel, DriverReviewList, RevenueTracker, etc.
+│   │   ├── 📁 components/       # SOSPanel, LiveMap, DriverReviewList, Sidebar, etc.
 │   │   ├── 📁 pages/            # Dashboard, Login
-│   │   └── 📁 services/         # Supabase client & API services
+│   │   └── 📁 services/         # Supabase client & API config
 │   ├── package.json
 │   └── vite.config.js
 │
 ├── 📁 backend/                  # Node.js / Express 5 MVC REST API
 │   ├── 📁 src/
-│   │   ├── 📁 config/           # Supabase & environment configurations
-│   │   ├── 📁 controllers/      # Auth, Alert, Booking, Driver, Sighting, Route controllers
-│   │   ├── 📁 middlewares/      # JWT authentication & role-checker middlewares
-│   │   ├── 📁 routes/           # REST endpoints definition
-│   │   ├── 📁 services/         # S2R routing algorithm & notification services
-│   │   └── 📁 utils/            # Helper utilities
-│   ├── 📁 scripts/              # Database migration & schema validation scripts
+│   │   ├── 📁 config/           # Supabase client & environment configuration
+│   │   ├── 📁 controllers/      # Auth, Alert, Booking, Driver, Sighting controllers
+│   │   ├── 📁 middlewares/      # JWT auth & role validation middlewares
+│   │   ├── 📁 routes/           # Express router endpoints
+│   │   └── 📁 services/         # S2R routing logic & notifications
 │   ├── server.js                # Server entry point
+│   ├── vercel.json              # Vercel serverless deployment config
 │   └── package.json
 │
-├── 📁 driver_mobile/            # Cross-Platform Flutter Mobile App
+├── 📁 driver_mobile/            # Cross-Platform Flutter Mobile Application
+│   ├── 📁 android/              # Native Android configuration & launcher icons
+│   ├── 📁 assets/               # GeoJSON road networks & GuideLanka logo assets
 │   ├── 📁 lib/
-│   │   ├── 📁 screens/          # Home, Map, Emergency SOS, Chat, Profile, Bookings
-│   │   ├── 📁 services/         # GPS Geolocator, API client, OneSignal handler
-│   │   ├── 📁 widgets/          # Custom mobile UI components
-│   │   └── main.dart            # Flutter application entry point
-│   ├── 📁 assets/               # App icons & static visual assets
-│   └── pubspec.yaml
+│   │   ├── 📁 screens/          # SafariMap, Login, Home, SOS, Chat, Profile
+│   │   ├── 📁 services/         # S2RRoutingService, ApiService, Geolocator
+│   │   └── 📁 widgets/          # Custom theme constants & widgets
+│   └── pubspec.yaml             # Flutter dependencies & launcher icon config
 │
 ├── 📁 tourist-web-app/          # React 19 + Vite Tourist Portal
 │   ├── 📁 src/
-│   │   ├── 📁 components/       # Navigation, Footer, Modals, Cards, Maps
-│   │   ├── 📁 pages/            # Home, DriversList, Booking, LiveMap, ParkRules, Chat
+│   │   ├── 📁 components/       # Navbar, Footer, BookingModal, Cards
+│   │   ├── 📁 pages/            # Home, DriversList, Booking, ParkRules
 │   │   └── 📁 services/         # API integration services
 │   ├── package.json
 │   └── vite.config.js
@@ -193,30 +218,30 @@ GuideLanka-System/
 
 | Domain | Technology / Library | Purpose |
 | :--- | :--- | :--- |
-| **Backend Runtime** | Node.js (v20+), Express.js (v5.x) | Core REST API backend & micro-controllers |
-| **Database & Auth** | Supabase (PostgreSQL), JWT, Bcrypt | Relational storage, user authentication, policies |
-| **Authority UI** | React 19, Vite, Tailwind CSS v4, Lucide Icons | Responsive command-center dashboard |
-| **Tourist Web UI** | React 19, Vite, Tailwind CSS v4 | Interactive visitor portal & booking interface |
-| **Mobile App** | Flutter (Dart), `geolocator`, `flutter_map` | Cross-platform mobile driver application |
-| **GIS & Mapping** | Leaflet, React-Leaflet, OpenStreetMap | Interactive spatial layers, geofences, vehicle GPS |
-| **Notifications** | OneSignal, NotifyLK SMS, Nodemailer | Real-time push, OTP verification, booking emails |
+| **Backend Runtime** | Node.js (v20+), Express.js (v5.x) | REST API backend hosted on Vercel |
+| **Database & Auth** | Supabase (PostgreSQL), JWT, Bcrypt | Relational database, role-based authentication |
+| **Authority Dashboard**| React 19, Vite, Tailwind CSS v4 | Ranger control room command center |
+| **Tourist Web Portal** | React 19, Vite, Tailwind CSS v4 | Tourist discovery & booking interface |
+| **Mobile Application** | Flutter (Dart 3.x), `flutter_map`, `geolocator` | Cross-platform safari driver navigation app |
+| **GIS & Spatial** | Leaflet, React-Leaflet, OpenStreetMap, GeoJSON | Safari road topologies, geofences, live telemetry |
+| **Notifications** | OneSignal, NotifyLK SMS, Nodemailer | Real-time push alerts, SMS OTP, booking confirmations |
 
 ---
 
 ## ⚡ Installation & Setup Guide
 
 ### Prerequisites
-- **Node.js** (v18.x or v20+ recommended) & `npm`
-- **Flutter SDK** (v3.10+ recommended) & **Android Studio / Xcode**
-- **Git**
-- A **Supabase** account with PostgreSQL database provisioned
+* **Node.js** (v18.x or v20+ recommended) & `npm`
+* **Flutter SDK** (v3.10+ recommended) & **Android Studio**
+* **Git**
+* A **Supabase** account with PostgreSQL database
 
 ---
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/your-username/GuideLanka-System.git
-cd GuideLanka-System
+git clone https://github.com/umindudinal/GuideLanka.git
+cd GuideLanka
 ```
 
 ---
@@ -227,35 +252,35 @@ cd backend
 npm install
 ```
 
-Create a `.env` file based on `.env.example`:
+Configure environment variables in `.env`:
 ```env
 PORT=5000
 SUPABASE_URL=https://your-supabase-project.supabase.co
-SUPABASE_KEY=your-supabase-service-or-anon-key
-JWT_SECRET=your_jwt_super_secret_key
+SUPABASE_KEY=your-supabase-service-role-or-anon-key
+JWT_SECRET=your_jwt_secret_key
 
 # SMS OTP (NotifyLK)
-SMS_PROVIDER=notifylk
 NOTIFY_API_KEY=your_notifylk_api_key
 NOTIFY_USER_ID=your_notifylk_user_id
 NOTIFY_SENDER_ID=your_sender_id
 
-# Email (SMTP)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_email@example.com
-SMTP_PASS=your_email_app_password
-
 # Push Notifications (OneSignal)
 ONESIGNAL_APP_ID=your_onesignal_app_id
 ONESIGNAL_REST_API_KEY=your_onesignal_rest_key
+
+# Email Notifications (SMTP)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_email_app_password
 ```
 
-Run in development mode:
+Run locally:
 ```bash
 npm run dev
-# Backend runs on http://localhost:5000 (accessible on 0.0.0.0 for mobile testing)
+# Running on http://localhost:5000
 ```
+> **Note:** The backend is also deployed live at `https://guide-lanka-backend.vercel.app`.
 
 ---
 
@@ -264,7 +289,7 @@ npm run dev
 cd ../authority-dashboard
 npm install
 npm run dev
-# Dashboard opens on http://localhost:5173
+# Dashboard launches on http://localhost:5173
 ```
 
 ---
@@ -284,9 +309,35 @@ npm run dev
 cd ../driver_mobile
 flutter pub get
 
-# Run on connected Android / iOS device or emulator
+# Run on Chrome Web or connected Android/iOS device:
 flutter run
 ```
+
+---
+
+## 📱 Mobile APK Build Guide
+
+To generate an optimized release APK for Android devices:
+
+```bash
+cd driver_mobile
+
+# 1. Update launcher icons (optional):
+dart run flutter_launcher_icons
+
+# 2. Build release APK:
+flutter build apk --release
+```
+
+The compiled APK will be generated at:
+```
+driver_mobile/build/app/outputs/flutter-apk/app-release.apk
+```
+
+#### Transfer & Install:
+1. Transfer `app-release.apk` to your Android device via USB, WhatsApp, or Google Drive.
+2. Open the file on your device and tap **Install** (enable "Install from Unknown Sources" if prompted).
+3. The app connects directly to the live cloud API (`https://guide-lanka-backend.vercel.app`), allowing mobile data or Wi-Fi operation from anywhere.
 
 ---
 
@@ -294,36 +345,35 @@ flutter run
 
 | Method | Endpoint | Description | Protected |
 | :--- | :--- | :--- | :---: |
-| `POST` | `/api/auth/register` | Register new Tourist or Safari Driver | No |
-| `POST` | `/api/auth/login` | Authenticate user & issue JWT token | No |
+| `POST` | `/api/auth/register` | Register a new Tourist or Safari Driver | No |
+| `POST` | `/api/auth/login` | Authenticate user & issue signed JWT token | No |
 | `POST` | `/api/auth/verify-otp` | Verify phone number via SMS OTP code | No |
 | `GET` | `/api/driver/all` | List all verified safari drivers | Yes |
-| `GET` | `/api/driver/:id` | Fetch specific driver details & ratings | Yes |
-| `PUT` | `/api/driver/status` | Update driver availability (Online / On-Safari / Offline) | Yes |
-| `GET` | `/api/sightings/active` | Get recent verified animal sightings (last 2 hours) | Yes |
-| `POST` | `/api/sightings/log` | Driver logs a new animal sighting with GPS coordinates | Yes |
-| `POST` | `/api/bookings/create` | Tourist creates a new safari reservation | Yes |
-| `PUT` | `/api/bookings/:id/status`| Accept / Decline / Complete booking | Yes |
-| `POST` | `/api/alerts/sos` | Trigger emergency SOS alert to Authority Dashboard | Yes |
-| `POST` | `/api/alerts/location` | Stream driver live GPS coordinates | Yes |
-| `GET` | `/api/chat/:bookingId` | Retrieve chat message history between tourist & driver | Yes |
+| `GET` | `/api/driver/profile` | Retrieve authenticated driver profile | Yes |
+| `PUT` | `/api/driver/status` | Update driver availability status | Yes |
+| `GET` | `/api/sightings` | Fetch active animal sightings | Yes |
+| `POST` | `/api/sightings/log` | Log a new wildlife sighting with coordinates | Yes |
+| `POST` | `/api/bookings` | Create a new safari reservation | Yes |
+| `PUT` | `/api/bookings/:id/status`| Accept, reject, or complete a booking | Yes |
+| `POST` | `/api/alerts` | Send emergency SOS alert (`LOST_ROUTE`, `SOS`, etc.) | Yes |
+| `GET` | `/api/chat/:bookingId` | Retrieve chat message history | Yes |
 | `POST` | `/api/chat/send` | Send a new chat message | Yes |
 
 ---
 
 ## 🔒 Security & Conservation Standards
 
-- **Geofence Enforcement**: Automated spatial queries detect if any vehicle breaches sensitive core breeding habitats, triggering an audible visual warning on the Authority Dashboard.
-- **Role-Based Access Control (RBAC)**: Strict separation of privileges between `AUTHORITY`, `DRIVER`, and `TOURIST` roles via signed JWT tokens.
-- **Encrypted Credentials**: Passwords stored using salted `bcryptjs` hashes.
-- **Eco-Compliance**: Strict route load balancing to adhere to Sri Lanka Department of Wildlife Conservation (DWC) track saturation ceilings.
+- **Geofence Safety Protocol**: Automated spatial coordinates monitoring triggers instant audible and visual warnings when a jeep breaches authorized safari perimeters.
+- **Role-Based Access Control (RBAC)**: Strict segregation of privileges between `AUTHORITY`, `DRIVER`, and `TOURIST` roles via signed JWT tokens.
+- **Credential Protection**: User passwords are encrypted using salted `bcryptjs` algorithms.
+- **Wildlife Protection Focus**: Time-decayed sighting mechanics balance visitor safari experience while preventing vehicle overcrowding around vulnerable wildlife.
 
 ---
 
 ## 👥 Contributors & Acknowledgements
 
-Developed as a modern wildlife technology initiative to advance sustainable eco-tourism in Sri Lanka.
-Special thanks to the local safari drivers and wildlife conservationists whose domain feedback shaped the S2R algorithm and emergency response workflows.
+Developed as an innovative wildlife engineering initiative to advance sustainable eco-tourism in Sri Lanka.
+Special appreciation to the Department of Wildlife Conservation (DWC) guidelines and local safari drivers whose field experience inspired the S2R algorithm and emergency response workflows.
 
 ---
 
