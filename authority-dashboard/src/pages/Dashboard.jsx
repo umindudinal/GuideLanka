@@ -14,8 +14,6 @@ import {
   Navigation,
   Activity,
   UserCheck,
-  Sun,
-  Moon,
   Menu
 } from 'lucide-react';
 
@@ -30,7 +28,7 @@ import RevenueTracker from '../components/RevenueTracker';
 import ReportsAnalysis from '../components/ReportsAnalysis';
 import AdminProfile from '../components/AdminProfile';
 
-export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleTheme }) {
+export default function Dashboard({ user, onUserUpdate, onLogout }) {
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'overview');
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -112,10 +110,27 @@ export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleT
         setSightings(sightingsData);
       }
 
+      // Fetch drivers first so alerts can be enriched with driver name & phone
+      const { data: usersData, error: uErr } = await supabase
+        .from('users')
+        .select('*, driver_profile:driver_profiles(*)')
+        .eq('role', 'DRIVER');
+
+      if (!uErr && usersData) {
+        setDrivers(usersData);
+      }
+
+      const driversMap = {};
+      if (usersData) {
+        usersData.forEach(u => {
+          driversMap[u.id] = u;
+        });
+      }
+
       let alertsData = [];
       const { data: eAlerts, error: eErr } = await supabase
         .from('emergency_alerts')
-        .select('*')
+        .select('*, driver:users(full_name, phone_number, email)')
         .order('timestamp', { ascending: false });
 
       if (!eErr && eAlerts) {
@@ -123,7 +138,7 @@ export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleT
       } else {
         const { data: regAlerts, error: aErr } = await supabase
           .from('alerts')
-          .select('*')
+          .select('*, driver:users(full_name, phone_number, email)')
           .order('created_at', { ascending: false });
         if (!aErr && regAlerts) {
           alertsData = regAlerts.map(a => ({
@@ -133,10 +148,22 @@ export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleT
             longitude: a.location_lng,
             alert_type: a.alert_type,
             status: a.status,
-            timestamp: a.created_at
+            timestamp: a.created_at,
+            driver: a.driver
           }));
         }
       }
+
+      // Enrich all alerts with driver name & phone
+      alertsData = alertsData.map(alert => {
+        const matchedDriver = alert.driver || driversMap[alert.driver_id];
+        return {
+          ...alert,
+          driver: matchedDriver || alert.driver || null,
+          driver_name: matchedDriver?.full_name || null,
+          driver_phone: matchedDriver?.phone_number || null,
+        };
+      });
 
       const activeAlert = alertsData.find(a => ['ACTIVE', 'PENDING'].includes(a.status?.toUpperCase()));
       const hasNewSOS = alertsData.some(newAlert =>
@@ -146,9 +173,10 @@ export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleT
 
       if (hasNewSOS && prevAlertIdsRef.current.size > 0 && activeAlert) {
         playAlertSound();
+        const guideLabel = activeAlert.driver_name || activeAlert.driver?.full_name || activeAlert.driver_id?.slice(0, 8);
         setNotification({
           title: "EMERGENCY SOS ALERT RECEIVED",
-          message: `Incident: ${activeAlert.alert_type || 'SOS Alert'} - Guide ID: ${activeAlert.driver_id?.slice(0, 8)}...`,
+          message: `Incident: ${activeAlert.alert_type || 'SOS Alert'} - Guide: ${guideLabel}`,
           type: "danger"
         });
         setTimeout(() => setNotification(null), 8000);
@@ -156,15 +184,6 @@ export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleT
 
       prevAlertIdsRef.current = new Set(alertsData.map(a => a.id));
       setSosAlerts(alertsData);
-
-      const { data: usersData, error: uErr } = await supabase
-        .from('users')
-        .select('*, driver_profile:driver_profiles(*)')
-        .eq('role', 'DRIVER');
-
-      if (!uErr && usersData) {
-        setDrivers(usersData);
-      }
 
       const { data: locationUpdates, error: lErr } = await supabase
         .from('alerts')
@@ -283,7 +302,7 @@ export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleT
   const activeSOS = sosAlerts.filter(a => ['ACTIVE', 'PENDING', 'RANGER DISPATCHED'].includes(a.status?.toUpperCase()));
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col lg:flex-row font-sans overflow-x-hidden">
+    <div className="h-screen w-full bg-slate-950 text-slate-100 flex flex-col lg:flex-row font-sans overflow-hidden">
 
       {notification && (
         <div
@@ -316,49 +335,6 @@ export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleT
         </div>
       )}
 
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsMobileOpen(true)}
-            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-200 transition cursor-pointer"
-            aria-label="Open Navigation Menu"
-            type="button"
-          >
-            <Menu size={20} />
-          </button>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700/60 p-1 flex items-center justify-center shrink-0">
-              <img src={logoImg} alt="GuideLanka" className="w-full h-full object-contain" />
-            </div>
-            <div>
-              <h2 className="font-extrabold text-xs tracking-tight text-slate-100 uppercase">GuideLanka</h2>
-              <span className="text-[9px] text-emerald-400 font-bold tracking-wider uppercase block">Command Portal</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {activeSOS.length > 0 && (
-            <div
-              onClick={() => setActiveTab('alerts')}
-              className="bg-rose-500/15 border border-rose-500/40 text-rose-400 px-2.5 py-1 rounded-full text-[10px] font-black flex items-center gap-1 animate-pulse cursor-pointer"
-            >
-              <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
-              {activeSOS.length} SOS
-            </div>
-          )}
-
-          <button
-            onClick={toggleTheme}
-            className="p-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-300 hover:text-emerald-400 rounded-xl transition cursor-pointer flex items-center justify-center"
-            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            type="button"
-          >
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-        </div>
-      </header>
-
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -368,47 +344,79 @@ export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleT
         onClose={() => setIsMobileOpen(false)}
       />
 
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pt-16 sm:pt-20 lg:pt-8 flex flex-col min-h-screen max-w-full">
-
-        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8 border-b border-slate-900 pb-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-50 tracking-tight">
-              {activeTab === 'overview' && 'Operations Overview'}
-              {activeTab === 'map' && 'Live Operations Map'}
-              {activeTab === 'alerts' && 'Emergency Management'}
-              {activeTab === 'drivers' && 'Driver Directory'}
-              {activeTab === 'routes' && 'Route Controller'}
-              {activeTab === 'revenue' && 'Revenue & Fees Tracker'}
-              {activeTab === 'reports' && 'Reports & Analytics Center'}
-              {activeTab === 'profile' && 'Admin Profile Information'}
-              {activeTab === 'tourists' && 'Tourist Analytics'}
-            </h1>
-            <p className="text-[11px] sm:text-xs text-slate-400 mt-1 uppercase tracking-wider">GuideLanka Administrative Dashboard</p>
-          </div>
-
-          <div className="hidden sm:flex items-center gap-3">
-            {activeSOS.length > 0 && (
-              <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 px-3.5 py-1.5 rounded-full text-xs font-black flex items-center gap-1.5 animate-pulse">
-                <span className="w-2 h-2 bg-rose-500 rounded-full"></span>
-                {activeSOS.length} ACTIVE SOS
-              </div>
-            )}
-
-            <div className="bg-slate-900 border border-slate-800 px-4 py-2 rounded-2xl flex items-center gap-2">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></span>
-              <span className="text-xs font-bold text-slate-300">Live Sync Engaged</span>
-            </div>
-
+      <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
+        {/* Mobile Navigation Header */}
+        <header className="lg:hidden shrink-0 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between shadow-xs z-30">
+          <div className="flex items-center gap-3">
             <button
-              onClick={toggleTheme}
-              className="p-2.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-emerald-400 hover:border-emerald-500/30 rounded-2xl transition cursor-pointer flex items-center justify-center shadow-lg"
-              title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              onClick={() => setIsMobileOpen(true)}
+              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-200 transition cursor-pointer"
+              aria-label="Open Navigation Menu"
               type="button"
             >
-              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+              <Menu size={20} />
             </button>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700/60 p-1 flex items-center justify-center shrink-0">
+                <img src={logoImg} alt="GuideLanka" className="w-full h-full object-contain" />
+              </div>
+              <div>
+                <h2 className="font-extrabold text-xs tracking-tight text-slate-100 uppercase">GuideLanka</h2>
+                <span className="text-[9px] text-emerald-400 font-bold tracking-wider uppercase block">Command Portal</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {activeSOS.length > 0 && (
+              <div
+                onClick={() => setActiveTab('alerts')}
+                className="bg-rose-500/15 border border-rose-500/40 text-rose-400 px-2.5 py-1 rounded-full text-[10px] font-black flex items-center gap-1 animate-pulse cursor-pointer"
+              >
+                <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
+                {activeSOS.length} SOS
+              </div>
+            )}
           </div>
         </header>
+
+        {/* Pinned Top Bar */}
+        <header className="shrink-0 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-6 lg:px-8 py-4 sm:py-5 z-20">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+            <div>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-50 tracking-tight">
+                {activeTab === 'overview' && 'Operations Overview'}
+                {activeTab === 'map' && 'Live Operations Map'}
+                {activeTab === 'alerts' && 'Emergency Management'}
+                {activeTab === 'drivers' && 'Driver Directory'}
+                {activeTab === 'routes' && 'Route Controller'}
+                {activeTab === 'revenue' && 'Revenue & Fees Tracker'}
+                {activeTab === 'reports' && 'Reports & Analytics Center'}
+                {activeTab === 'profile' && 'Admin Profile Information'}
+                {activeTab === 'tourists' && 'Tourist Analytics'}
+              </h1>
+              <p className="text-[11px] sm:text-xs text-slate-400 mt-1 uppercase tracking-wider font-semibold">
+                GuideLanka Administrative Dashboard
+              </p>
+            </div>
+
+            <div className="hidden sm:flex items-center gap-3">
+              {activeSOS.length > 0 && (
+                <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 px-3.5 py-1.5 rounded-full text-xs font-black flex items-center gap-1.5 animate-pulse">
+                  <span className="w-2 h-2 bg-rose-500 rounded-full"></span>
+                  {activeSOS.length} ACTIVE SOS
+                </div>
+              )}
+
+              <div className="bg-slate-900 border border-slate-800 px-4 py-2 rounded-2xl flex items-center gap-2 shadow-xs">
+                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></span>
+                <span className="text-xs font-bold text-slate-300">Live Sync Engaged</span>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col min-h-0 max-w-full">
 
         {activeTab === 'overview' && (
           <div className="space-y-6 sm:space-y-8 flex-1 flex flex-col justify-between">
@@ -479,7 +487,6 @@ export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleT
                     zoom={mapZoom}
                     selectedPark={selectedPark}
                     driverLocations={driverLocations}
-                    theme={theme}
                   />
                 </div>
               </div>
@@ -490,7 +497,7 @@ export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleT
                   SOS Center Actions
                 </h3>
                 <div className="flex-1 overflow-y-auto">
-                  <SOSPanel alerts={sosAlerts} setAlerts={setSosAlerts} onActionComplete={fetchAllData} minimal={true} />
+                  <SOSPanel alerts={sosAlerts} setAlerts={setSosAlerts} onActionComplete={fetchAllData} minimal={true} drivers={drivers} />
                 </div>
               </div>
             </div>
@@ -533,7 +540,6 @@ export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleT
                   zoom={mapZoom}
                   selectedPark={selectedPark}
                   driverLocations={driverLocations}
-                  theme={theme}
                 />
               </div>
 
@@ -609,7 +615,7 @@ export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleT
 
         {activeTab === 'alerts' && (
           <div className="flex-1 bg-slate-900/40 border border-slate-800 rounded-3xl p-4 sm:p-6 flex flex-col">
-            <SOSPanel alerts={sosAlerts} setAlerts={setSosAlerts} onActionComplete={fetchAllData} />
+            <SOSPanel alerts={sosAlerts} setAlerts={setSosAlerts} onActionComplete={fetchAllData} drivers={drivers} />
           </div>
         )}
 
@@ -650,6 +656,7 @@ export default function Dashboard({ user, onUserUpdate, onLogout, theme, toggleT
         )}
 
       </main>
+      </div>
 
     </div>
   );

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 import 'package:flutter_map/flutter_map.dart';
 
@@ -9,6 +11,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../services/api_service.dart';
+import '../services/s2r_routing_service.dart';
 
 import '../widgets/theme_constants.dart';
 
@@ -34,10 +37,14 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
   Timer? _sightingsTimer;
 
   bool _isSatelliteView = false;
-
-  String _selectedFilter = 'ALL';
+  List<Polyline>? _roadPolylines;
 
   Map<String, dynamic>? _selectedSighting;
+  final S2RRoutingService _s2rService = S2RRoutingService();
+  S2RRouteResult? _activeS2RRoute;
+
+  bool _isPickingLocation = false;
+  LatLng? _selectedLogLocation;
 
   AnimationController? _pulseController;
   Animation<double>? _pulseAnimation;
@@ -47,6 +54,8 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
     super.initState();
 
     _initPulseAnimation();
+
+    _loadRoadsFromGeoJson();
 
     _startLiveTracking();
 
@@ -79,11 +88,19 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
   }
 
   Future<void> _fetchSightings() async {
-    final sightings = await ApiService.getRecentSightings();
-    if (mounted) {
-      setState(() {
-        _recentSightings = sightings;
-      });
+    try {
+      final sightings = await ApiService.getRecentSightings();
+      if (mounted) {
+        setState(() {
+          _recentSightings = sightings;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _recentSightings = [];
+        });
+      }
     }
   }
 
@@ -104,57 +121,161 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
     }
   }
 
-  Future<void> _startLiveTracking() async {
+  Future<void> _loadRoadsFromGeoJson() async {
+    try {
+      final String jsonString = await rootBundle.loadString('assets/map.geojson');
+      final Map<String, dynamic> data = jsonDecode(jsonString);
+      _s2rService.buildGraphFromGeoJson(data);
+      final List<dynamic> features = data['features'] ?? [];
+      final List<Polyline> polylines = [];
+      LatLng? firstPoint;
 
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return Future.error('Location services are disabled.');
-    }
+      for (final feature in features) {
+        final geometry = feature['geometry'];
+        if (geometry == null) continue;
+        final type = geometry['type'];
+        final coordinates = geometry['coordinates'];
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        return Future.error('Location permissions are denied');
+        if (type == 'LineString' && coordinates is List) {
+          final List<LatLng> points = [];
+          for (final coord in coordinates) {
+            if (coord is List && coord.length >= 2) {
+              final double lng = (coord[0] as num).toDouble();
+              final double lat = (coord[1] as num).toDouble();
+              final p = LatLng(lat, lng);
+              points.add(p);
+              firstPoint ??= p;
+            }
+          }
+          if (points.isNotEmpty) {
+            polylines.add(
+              Polyline(
+                points: points,
+                color: const Color(0xFFFFB74D),
+                strokeWidth: 3.5,
+                borderColor: const Color(0xFFFB8C00).withValues(alpha: 0.5),
+                borderStrokeWidth: 0.8,
+                strokeCap: StrokeCap.round,
+                strokeJoin: StrokeJoin.round,
+              ),
+            );
+          }
+        } else if (type == 'MultiLineString' && coordinates is List) {
+          for (final line in coordinates) {
+            if (line is List) {
+              final List<LatLng> points = [];
+              for (final coord in line) {
+                if (coord is List && coord.length >= 2) {
+                  final double lng = (coord[0] as num).toDouble();
+                  final double lat = (coord[1] as num).toDouble();
+                  final p = LatLng(lat, lng);
+                  points.add(p);
+                  firstPoint ??= p;
+                }
+              }
+              if (points.isNotEmpty) {
+                polylines.add(
+                  Polyline(
+                    points: points,
+                    color: const Color(0xFFFFB74D),
+                    strokeWidth: 3.5,
+                    borderColor: const Color(0xFFFB8C00).withValues(alpha: 0.5),
+                    borderStrokeWidth: 0.8,
+                    strokeCap: StrokeCap.round,
+                    strokeJoin: StrokeJoin.round,
+                  ),
+                );
+              }
+            }
+          }
+        }
       }
+
+      if (mounted) {
+        setState(() {
+          _roadPolylines = polylines;
+          _currentLocation ??= firstPoint ?? const LatLng(6.8086, 79.9925);
+        });
+        if (_isMapReady) {
+          _mapController.move(const LatLng(6.8086, 79.9925), 17.5);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading map.geojson: $e');
     }
+  }
 
-    Position position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-    );
-    if (mounted) {
-      setState(() {
-        _currentLocation = LatLng(position.latitude, position.longitude);
-      });
-    }
+  Future<void> _startLiveTracking() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted && _currentLocation == null) {
+          setState(() {
+            _currentLocation = const LatLng(6.8086, 79.9925);
+          });
+        }
+        return;
+      }
 
-    ApiService.updateLiveLocation(position.latitude, position.longitude);
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted && _currentLocation == null) {
+            setState(() {
+              _currentLocation = const LatLng(6.8086, 79.9925);
+            });
+          }
+          return;
+        }
+      }
 
-    Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
-      ),
-    ).listen((Position position) {
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
       if (mounted) {
         setState(() {
           _currentLocation = LatLng(position.latitude, position.longitude);
         });
-
-        if (_isMapReady) {
-          _mapController.move(_currentLocation!, _mapController.camera.zoom);
-        }
-
-        ApiService.updateLiveLocation(position.latitude, position.longitude);
-
-        _checkGeofenceBounds(position.latitude, position.longitude);
       }
-    });
+
+      ApiService.updateLiveLocation(position.latitude, position.longitude);
+
+      Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10,
+        ),
+      ).listen((Position position) {
+        if (mounted) {
+          setState(() {
+            _currentLocation = LatLng(position.latitude, position.longitude);
+          });
+
+          if (_isMapReady) {
+            _mapController.move(_currentLocation!, _mapController.camera.zoom);
+          }
+
+          ApiService.updateLiveLocation(position.latitude, position.longitude);
+
+          _checkGeofenceBounds(position.latitude, position.longitude);
+        }
+      });
+    } catch (e) {
+      debugPrint('Live tracking error: $e');
+      if (mounted && _currentLocation == null) {
+        setState(() {
+          _currentLocation = const LatLng(6.8086, 79.9925);
+        });
+      }
+    }
   }
 
   void _checkGeofenceBounds(double lat, double lng) {
-
-    bool isOutside = (lat < 8.1200 || lat > 8.1500 || lng < 80.9500 || lng > 80.9800);
+    bool isInZone = (lat >= 6.8000 && lat <= 6.8200 && lng >= 79.9800 && lng <= 80.0050) ||
+                    (lat >= 8.1200 && lat <= 8.1500 && lng >= 80.9500 && lng <= 80.9800) ||
+                    (lat >= 6.2500 && lat <= 6.5500 && lng >= 81.1500 && lng <= 81.6000);
+    bool isOutside = !isInZone;
 
     if (isOutside && !_isOutOfZoneAlertSent) {
       _isOutOfZoneAlertSent = true;
@@ -204,8 +325,13 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
     return distanceInMeters / 1000.0;
   }
 
-  void _showSightingBottomSheet() {
-    if (_currentLocation == null) return;
+  void _showSightingBottomSheet({LatLng? customLocation}) {
+    final LatLng targetLocation = customLocation ??
+        _selectedLogLocation ??
+        _currentLocation ??
+        const LatLng(6.8086, 79.9925);
+    final bool isCustom = customLocation != null ||
+        (_selectedLogLocation != null && _currentLocation != null && _selectedLogLocation != _currentLocation);
 
     showModalBottomSheet(
       context: context,
@@ -221,8 +347,8 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
             ],
           ),
           padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
+            left: 20,
+            right: 20,
             top: 16,
             bottom: MediaQuery.of(context).viewInsets.bottom + 24,
           ),
@@ -239,7 +365,8 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+
               Row(
                 children: [
                   Container(
@@ -251,22 +378,102 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                     child: const Icon(Icons.add_location_alt_rounded, color: AppColors.primary, size: 24),
                   ),
                   const SizedBox(width: 14),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text(
-                        'Log Wildlife Spotting',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.textDark),
-                      ),
-                      Text(
-                        'Broadcasting live to all safari guides in park',
-                        style: TextStyle(fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w500),
-                      ),
-                    ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Log Wildlife Spotting',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.textDark),
+                        ),
+                        Text(
+                          'Select animal & choose position on map',
+                          style: TextStyle(fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+
+              // Location Selector Card
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isCustom ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isCustom ? Colors.orange.shade300 : Colors.green.shade300,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isCustom ? Colors.orange.shade100 : Colors.green.shade100,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isCustom ? Icons.edit_location_alt_rounded : Icons.my_location_rounded,
+                        color: isCustom ? Colors.deepOrange : Colors.green.shade800,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isCustom ? '🎯 Selected on Map' : '📍 Current GPS Location',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12.5,
+                              color: isCustom ? Colors.deepOrange.shade900 : Colors.green.shade900,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${targetLocation.latitude.toStringAsFixed(4)}, ${targetLocation.longitude.toStringAsFixed(4)}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isCustom ? Colors.deepOrange.shade700 : Colors.green.shade700,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.touch_app_rounded, size: 14),
+                      label: Text(
+                        isCustom ? 'Change' : 'Pick on Map',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: isCustom ? Colors.deepOrange : AppColors.primary,
+                        side: BorderSide(color: isCustom ? Colors.deepOrange : AppColors.primary),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        setState(() {
+                          _isPickingLocation = true;
+                          _selectedLogLocation = targetLocation;
+                        });
+                        if (_isMapReady) {
+                          _mapController.move(targetLocation, _mapController.camera.zoom);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
 
               GridView.count(
                 shrinkWrap: true,
@@ -276,12 +483,12 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                 mainAxisSpacing: 12,
                 childAspectRatio: 0.95,
                 children: [
-                  _buildAnimalButton('Elephant', '🐘'),
-                  _buildAnimalButton('Leopard', '🐆'),
-                  _buildAnimalButton('Bear', '🐻'),
-                  _buildAnimalButton('Deer', '🦌'),
-                  _buildAnimalButton('Peacock', '🦚'),
-                  _buildAnimalButton('Other', '🐾'),
+                  _buildAnimalButton('Elephant', '🐘', targetLocation),
+                  _buildAnimalButton('Leopard', '🐆', targetLocation),
+                  _buildAnimalButton('Bear', '🐻', targetLocation),
+                  _buildAnimalButton('Deer', '🦌', targetLocation),
+                  _buildAnimalButton('Peacock', '🦚', targetLocation),
+                  _buildAnimalButton('Other', '🐾', targetLocation),
                 ],
               ),
               const SizedBox(height: 12),
@@ -292,13 +499,13 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
     );
   }
 
-  Widget _buildAnimalButton(String name, String emoji) {
+  Widget _buildAnimalButton(String name, String emoji, LatLng targetLocation) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
           Navigator.pop(context);
-          _saveSighting(name);
+          _saveSighting(name, targetLocation: targetLocation);
         },
         borderRadius: BorderRadius.circular(20),
         child: Container(
@@ -328,9 +535,15 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
     );
   }
 
-  Future<void> _saveSighting(String animalName) async {
-    final lat = _currentLocation!.latitude;
-    final lng = _currentLocation!.longitude;
+  Future<void> _saveSighting(String animalName, {LatLng? targetLocation}) async {
+    final loc = targetLocation ?? _selectedLogLocation ?? _currentLocation ?? const LatLng(6.8086, 79.9925);
+    final lat = loc.latitude;
+    final lng = loc.longitude;
+
+    setState(() {
+      _isPickingLocation = false;
+      _selectedLogLocation = null;
+    });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -377,13 +590,24 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
   }
 
   List<dynamic> get _filteredSightings {
-    if (_selectedFilter == 'ALL') return _recentSightings;
-    return _recentSightings.where((s) => (s['animal_type'] ?? '').toString().toLowerCase() == _selectedFilter.toLowerCase()).toList();
+    final now = DateTime.now();
+    return _recentSightings.where((sighting) {
+      if (sighting['created_at'] == null) return true;
+      final createdAt = DateTime.tryParse(sighting['created_at'].toString());
+      if (createdAt == null) return true;
+      final ageMinutes = now.difference(createdAt).inMinutes;
+      final animalType = sighting['animal_type']?.toString() ?? 'other';
+      final maxLifespan = S2RRoutingService.getAnimalMaxLifespan(animalType);
+      return ageMinutes <= maxLifespan;
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     _initPulseAnimation();
+    if (_roadPolylines == null) {
+      _loadRoadsFromGeoJson();
+    }
     return Scaffold(
       backgroundColor: AppColors.bgSand,
 
@@ -408,20 +632,38 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                 FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
-                    initialCenter: _currentLocation ?? const LatLng(6.375, 81.518),
-                    initialZoom: 15.0,
+                    initialCenter: _currentLocation ?? const LatLng(6.8086, 79.9925),
+                    initialZoom: 17.5,
                     onMapReady: () {
                       setState(() {
                         _isMapReady = true;
                       });
+                      _mapController.move(const LatLng(6.8086, 79.9925), 17.5);
                     },
-                    onTap: (tapPosition, point) {
-
-                      if (_selectedSighting != null) {
+                    onPositionChanged: (camera, hasGesture) {
+                      if (_isPickingLocation && hasGesture) {
                         setState(() {
-                          _selectedSighting = null;
+                          _selectedLogLocation = camera.center;
                         });
                       }
+                    },
+                    onTap: (tapPosition, point) {
+                      if (_isPickingLocation) {
+                        setState(() {
+                          _selectedLogLocation = point;
+                        });
+                        _mapController.move(point, _mapController.camera.zoom);
+                        return;
+                      }
+                      if (_selectedSighting != null || _activeS2RRoute != null) {
+                        _clearS2RRoute();
+                      }
+                    },
+                    onLongPress: (tapPosition, point) {
+                      setState(() {
+                        _selectedLogLocation = point;
+                      });
+                      _showSightingBottomSheet(customLocation: point);
                     },
                   ),
                   children: [
@@ -451,6 +693,16 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                         maxZoom: 19,
                       ),
                     ],
+
+                    if (_roadPolylines != null && _roadPolylines!.isNotEmpty)
+                      PolylineLayer(
+                        polylines: _roadPolylines!,
+                      ),
+
+                    if (_activeS2RRoute != null)
+                      PolylineLayer(
+                        polylines: _buildS2RRoutePolylines(),
+                      ),
 
                     PolygonLayer(
                       polygons: [
@@ -520,11 +772,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                             point: LatLng(lat, lng),
                             child: GestureDetector(
                               onTap: () {
-                                setState(() {
-                                  _selectedSighting = sighting;
-                                });
-
-                                _mapController.move(LatLng(lat, lng), 16.0);
+                                _onSightingSelected(sighting);
                               },
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
@@ -555,6 +803,40 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                             ),
                           );
                         }),
+
+                        if (!_isPickingLocation && _selectedLogLocation != null)
+                          Marker(
+                            width: 70.0,
+                            height: 68.0,
+                            alignment: Alignment.topCenter,
+                            point: _selectedLogLocation!,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.deepOrange,
+                                    borderRadius: BorderRadius.circular(8),
+                                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                                  ),
+                                  child: const Text(
+                                    'New Spot 🎯',
+                                    style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                const Icon(Icons.location_on_rounded, color: Colors.deepOrange, size: 30),
+                              ],
+                            ),
+                          ),
+
+                        if (_activeS2RRoute != null)
+                          Marker(
+                            width: 44.0,
+                            height: 44.0,
+                            point: _activeS2RRoute!.nearestRoadToSighting,
+                            child: _buildNearestRoadAccessMarker(),
+                          ),
                       ],
                     ),
                   ],
@@ -623,7 +905,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                                           ),
                                           const SizedBox(width: 5),
                                           Text(
-                                            _isOutOfZoneAlertSent ? 'OUT OF ZONE ⚠️' : 'Medirigiriya Park Zone 🌲',
+                                            _isOutOfZoneAlertSent ? 'OUT OF ZONE ⚠️' : 'Safari Navigation Zone 🌲',
                                             style: TextStyle(
                                               color: _isOutOfZoneAlertSent ? Colors.red.shade200 : Colors.white70,
                                               fontSize: 11,
@@ -661,21 +943,6 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                _buildFilterChip('ALL', '🐾 All (${_recentSightings.length})'),
-                                _buildFilterChip('Elephant', '🐘 Elephants'),
-                                _buildFilterChip('Leopard', '🐆 Leopards'),
-                                _buildFilterChip('Bear', '🐻 Bears'),
-                                _buildFilterChip('Deer', '🦌 Deer'),
-                                _buildFilterChip('Peacock', '🦚 Peacocks'),
-                              ],
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -683,7 +950,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                 ),
 
                 Positioned(
-                  top: 145.0,
+                  top: 100.0,
                   right: 16.0,
                   child: Column(
                     children: [
@@ -749,7 +1016,23 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                         activeColor: Colors.blue.shade700,
                         onPressed: () {
                           if (_isMapReady && _currentLocation != null) {
-                            _mapController.move(_currentLocation!, 15.5);
+                            final targetZoom = _mapController.camera.zoom >= 17.0
+                                ? _mapController.camera.zoom
+                                : 17.5;
+                            _mapController.move(_currentLocation!, targetZoom);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 8),
+
+                      _buildMapControlButton(
+                        icon: Icons.alt_route_rounded,
+                        tooltip: 'Show Roads',
+                        isActive: true,
+                        activeColor: const Color(0xFFFFB74D),
+                        onPressed: () {
+                          if (_isMapReady) {
+                            _mapController.move(const LatLng(6.8086, 79.9925), 17.5);
                           }
                         },
                       ),
@@ -757,114 +1040,111 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                   ),
                 ),
 
-                if (_selectedSighting != null && _currentLocation != null)
+                _buildS2RRouteCard(),
+
+                if (!_isPickingLocation)
                   Positioned(
-                    bottom: 90,
-                    left: 20,
-                    right: 20,
+                    bottom: 24,
+                    left: 30,
+                    right: 30,
                     child: Container(
-                      padding: const EdgeInsets.all(16),
+                      height: 54,
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: AppShadows.softCardShadow,
-                        border: Border.all(color: AppColors.accent.withValues(alpha: 0.3), width: 1.5),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: const BoxDecoration(
-                              color: AppColors.accentLight,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Text(
-                              _getAnimalEmoji(_selectedSighting!['animal_type'] ?? ''),
-                              style: const TextStyle(fontSize: 32),
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '${_selectedSighting!['animal_type'] ?? 'Animal'} Sighting',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 16,
-                                    color: AppColors.textDark,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.near_me_rounded, size: 13, color: AppColors.primary),
-                                    const SizedBox(width: 4),
-
-                                    Text(
-                                      '${_calculateDistanceInKm(_currentLocation!.latitude, _currentLocation!.longitude, double.tryParse(_selectedSighting!['location_lat'].toString()) ?? 0.0, double.tryParse(_selectedSighting!['location_lng'].toString()) ?? 0.0).toStringAsFixed(1)} km from your position',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textMuted,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          IconButton(
-                            icon: const Icon(Icons.close_rounded, color: AppColors.textLight),
-                            onPressed: () {
-                              setState(() {
-                                _selectedSighting = null;
-                              });
-                            },
-                          ),
+                        gradient: AppGradients.primaryGradient,
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.35),
+                            blurRadius: 18,
+                            spreadRadius: 2,
+                            offset: const Offset(0, 6),
+                          )
                         ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _showSightingBottomSheet(),
+                          borderRadius: BorderRadius.circular(30),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.add_location_alt_rounded, color: AppColors.accent, size: 22),
+                              SizedBox(width: 10),
+                              Text(
+                                'LOG WILDLIFE SIGHTING',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 14,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
 
-                Positioned(
-                  bottom: 24,
-                  left: 30,
-                  right: 30,
-                  child: Container(
-                    height: 54,
-                    decoration: BoxDecoration(
-                      gradient: AppGradients.primaryGradient,
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.35),
-                          blurRadius: 18,
-                          spreadRadius: 2,
-                          offset: const Offset(0, 6),
-                        )
-                      ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _showSightingBottomSheet,
-                        borderRadius: BorderRadius.circular(30),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.add_location_alt_rounded, color: AppColors.accent, size: 22),
-                            SizedBox(width: 10),
-                            Text(
-                              'LOG WILDLIFE SIGHTING',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 14,
-                                letterSpacing: 0.8,
+                if (_isPickingLocation) ...[
+                  // Floating Center Pin (Uber/Google Maps style drag-and-drop indicator)
+                  IgnorePointer(
+                    child: Center(
+                      child: FractionalTranslation(
+                        translation: const Offset(0.0, -0.5),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1E293B),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.35),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                                border: Border.all(color: Colors.orangeAccent, width: 1.2),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.open_with_rounded, color: Colors.orangeAccent, size: 14),
+                                  SizedBox(width: 5),
+                                  Text(
+                                    'Drag Map to Move Location 🎯',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Icon(
+                              Icons.location_on_rounded,
+                              color: Colors.deepOrange,
+                              size: 52,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black45,
+                                  blurRadius: 10,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            Container(
+                              width: 14,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                borderRadius: const BorderRadius.all(Radius.elliptical(14, 6)),
                               ),
                             ),
                           ],
@@ -872,41 +1152,162 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                       ),
                     ),
                   ),
-                ),
+
+                  // Top Drag & Drop Guidance Banner
+                  Positioned(
+                    top: 80,
+                    left: 16,
+                    right: 16,
+                    child: SafeArea(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.35),
+                              blurRadius: 15,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                          border: Border.all(color: AppColors.accent, width: 1.5),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.touch_app_rounded, color: Colors.white, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Text(
+                                    'Drag & Drop Location Mode',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Drag map or tap to place pin where animal was spotted',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, color: Colors.white),
+                              onPressed: () {
+                                setState(() {
+                                  _isPickingLocation = false;
+                                  _selectedLogLocation = null;
+                                });
+                              },
+                              tooltip: 'Cancel',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Bottom Location Confirm Bar
+                  Positioned(
+                    bottom: 24,
+                    left: 16,
+                    right: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 18,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                        border: Border.all(color: Colors.deepOrange.withValues(alpha: 0.4), width: 1.5),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.deepOrange.withValues(alpha: 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.location_on_rounded, color: Colors.deepOrange, size: 26),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'Selected Location 🎯',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 13,
+                                    color: AppColors.textDark,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${(_selectedLogLocation ?? _mapController.camera.center).latitude.toStringAsFixed(4)}, ${(_selectedLogLocation ?? _mapController.camera.center).longitude.toStringAsFixed(4)}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textMuted,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.check_circle_rounded, size: 18),
+                            label: const Text('Confirm Here', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.deepOrange,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              elevation: 2,
+                            ),
+                            onPressed: () {
+                              final target = _selectedLogLocation ?? _mapController.camera.center;
+                              setState(() {
+                                _isPickingLocation = false;
+                              });
+                              _showSightingBottomSheet(customLocation: target);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
     );
   }
 
-  Widget _buildFilterChip(String filterKey, String label) {
-    bool isSelected = _selectedFilter == filterKey;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedFilter = filterKey;
-        });
-      },
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.accent : Colors.white.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? AppColors.accent : Colors.white.withValues(alpha: 0.25),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? AppColors.textDark : Colors.white,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            fontSize: 12,
-          ),
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildMapControlButton({
     required IconData icon,
@@ -939,6 +1340,392 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
           ),
         ),
       ),
+    );
+  }
+
+  void _onSightingSelected(Map<String, dynamic> sighting) {
+    final lat = double.tryParse(sighting['location_lat'].toString()) ?? 0.0;
+    final lng = double.tryParse(sighting['location_lng'].toString()) ?? 0.0;
+    final sightingPos = LatLng(lat, lng);
+    final driverPos = _currentLocation ?? const LatLng(6.8086, 79.9925);
+    final animalType = sighting['animal_type']?.toString() ?? 'Wildlife';
+
+    DateTime? sightingTime;
+    if (sighting['created_at'] != null) {
+      sightingTime = DateTime.tryParse(sighting['created_at'].toString());
+    }
+
+    final route = _s2rService.calculateRoute(
+      driverLocation: driverPos,
+      sightingLocation: sightingPos,
+      animalType: animalType,
+      sightingTime: sightingTime,
+    );
+
+    setState(() {
+      _selectedSighting = sighting;
+      _activeS2RRoute = route;
+    });
+
+    if (_isMapReady && route.fullRoute.isNotEmpty) {
+      _fitMapToRoute(route.fullRoute);
+    }
+  }
+
+  void _clearS2RRoute() {
+    setState(() {
+      _selectedSighting = null;
+      _activeS2RRoute = null;
+    });
+  }
+
+  void _fitMapToRoute(List<LatLng> points) {
+    if (points.isEmpty) return;
+    try {
+      final bounds = LatLngBounds.fromPoints(points);
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.only(top: 80, bottom: 240, left: 50, right: 50),
+          maxZoom: 18.0,
+        ),
+      );
+    } catch (e) {
+      if (points.isNotEmpty) {
+        _mapController.move(points.first, 17.5);
+      }
+    }
+  }
+
+  List<Polyline> _buildS2RRoutePolylines() {
+    if (_activeS2RRoute == null) return [];
+    final List<Polyline> lines = [];
+
+    // 1. High-visibility illuminated road segment on the safari road network
+    if (_activeS2RRoute!.roadSegment.length >= 2) {
+      // Outer neon-blue ambient glow
+      lines.add(
+        Polyline(
+          points: _activeS2RRoute!.roadSegment,
+          color: const Color(0xFF00E5FF).withValues(alpha: 0.35),
+          strokeWidth: 9.0,
+          strokeCap: StrokeCap.round,
+          strokeJoin: StrokeJoin.round,
+        ),
+      );
+      // Core electric blue road path
+      lines.add(
+        Polyline(
+          points: _activeS2RRoute!.roadSegment,
+          color: const Color(0xFF0091EA),
+          strokeWidth: 5.0,
+          borderColor: Colors.white.withValues(alpha: 0.8),
+          borderStrokeWidth: 1.0,
+          strokeCap: StrokeCap.round,
+          strokeJoin: StrokeJoin.round,
+        ),
+      );
+    }
+
+    // 2. Approach from Driver position to nearest road access entrance
+    final driverPos = _currentLocation ?? const LatLng(6.8086, 79.9925);
+    if (S2RRoutingService.distanceMeters(driverPos, _activeS2RRoute!.nearestRoadToDriver) > 3.0) {
+      lines.add(
+        Polyline(
+          points: [driverPos, _activeS2RRoute!.nearestRoadToDriver],
+          color: const Color(0xFF1E88E5),
+          strokeWidth: 3.5,
+          borderColor: Colors.white,
+          borderStrokeWidth: 1.0,
+          strokeCap: StrokeCap.round,
+        ),
+      );
+    }
+
+    // 3. Sighting link: from nearest road point to actual animal sighting
+    if (_selectedSighting != null) {
+      final sLat = double.tryParse(_selectedSighting!['location_lat'].toString()) ?? 0.0;
+      final sLng = double.tryParse(_selectedSighting!['location_lng'].toString()) ?? 0.0;
+      final sightingPos = LatLng(sLat, sLng);
+      if (S2RRoutingService.distanceMeters(_activeS2RRoute!.nearestRoadToSighting, sightingPos) > 3.0) {
+        lines.add(
+          Polyline(
+            points: [_activeS2RRoute!.nearestRoadToSighting, sightingPos],
+            color: const Color(0xFFFF6D00),
+            strokeWidth: 3.5,
+            borderColor: Colors.white,
+            borderStrokeWidth: 1.0,
+            strokeCap: StrokeCap.round,
+          ),
+        );
+      }
+    }
+
+    return lines;
+  }
+
+  Widget _buildNearestRoadAccessMarker() {
+    return Tooltip(
+      message: 'Nearest Safari Road Access Point (S2R)',
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0091EA),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 2.5),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0091EA).withValues(alpha: 0.6),
+              blurRadius: 10,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: const Center(
+          child: Icon(
+            Icons.alt_route_rounded,
+            color: Colors.white,
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildS2RRouteCard() {
+    if (_selectedSighting == null || _activeS2RRoute == null) {
+      return const SizedBox.shrink();
+    }
+
+    final route = _activeS2RRoute!;
+    final animalType = route.animalType;
+    final emoji = _getAnimalEmoji(animalType);
+    final scorePercent = (route.s2rScore * 100).toInt();
+    final freshnessPercent = (route.timeDecay * 100).toInt();
+    final distanceM = route.distanceMeters.toStringAsFixed(0);
+    final straightKm = _currentLocation != null
+        ? _calculateDistanceInKm(
+            _currentLocation!.latitude,
+            _currentLocation!.longitude,
+            double.tryParse(_selectedSighting!['location_lat'].toString()) ?? 0.0,
+            double.tryParse(_selectedSighting!['location_lng'].toString()) ?? 0.0,
+          ).toStringAsFixed(1)
+        : '0.0';
+
+    return Positioned(
+      bottom: 88,
+      left: 16,
+      right: 16,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
+          ],
+          border: Border.all(color: const Color(0xFF0091EA).withValues(alpha: 0.35), width: 1.5),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Row 1: Emoji, Animal Title, S2R Badge, Close Button
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0091EA).withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(emoji, style: const TextStyle(fontSize: 28)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              '$animalType Sighting',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                                color: AppColors.textDark,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00C853).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFF00C853)),
+                            ),
+                            child: Text(
+                              'S2R $scorePercent%',
+                              style: const TextStyle(
+                                color: Color(0xFF007E33),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        '🛣️ Road: $distanceM m • Direct: $straightKm km • Active for ${route.remainingMinutes}m',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: AppColors.textLight),
+                  onPressed: _clearS2RRoute,
+                  tooltip: 'Clear Route',
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Row 2: S2R Formula Metrics Pill Container
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F7FA),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildMetricItem(
+                    label: 'Road Dist L(P)',
+                    value: '$distanceM m',
+                    icon: Icons.alt_route_rounded,
+                    color: const Color(0xFF0288D1),
+                  ),
+                  Container(height: 24, width: 1, color: Colors.grey.shade300),
+                  _buildMetricItem(
+                    label: 'Freshness TD',
+                    value: '$freshnessPercent% (${route.remainingMinutes}m)',
+                    icon: Icons.timer_outlined,
+                    color: const Color(0xFFE65100),
+                  ),
+                  Container(height: 24, width: 1, color: Colors.grey.shade300),
+                  _buildMetricItem(
+                    label: 'Weight (AW)',
+                    value: route.animalWeight.toStringAsFixed(1),
+                    icon: Icons.pets_rounded,
+                    color: const Color(0xFF2E7D32),
+                  ),
+                  Container(height: 24, width: 1, color: Colors.grey.shade300),
+                  _buildMetricItem(
+                    label: 'Utility (Si)',
+                    value: route.sightingUtility.toStringAsFixed(2),
+                    icon: Icons.auto_awesome_rounded,
+                    color: const Color(0xFF6A1B9A),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Row 3: Action Buttons (Focus on Route / Nearest Road Point)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.center_focus_strong_rounded, size: 16),
+                    label: const Text('View Full Route', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF0091EA),
+                      side: const BorderSide(color: Color(0xFF0091EA)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                    onPressed: () {
+                      if (_isMapReady && _activeS2RRoute != null) {
+                        _fitMapToRoute(_activeS2RRoute!.fullRoute);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.alt_route_rounded, size: 16),
+                    label: const Text('Go to Road Access', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0091EA),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      elevation: 0,
+                    ),
+                    onPressed: () {
+                      if (_isMapReady && _activeS2RRoute != null) {
+                        _mapController.move(_activeS2RRoute!.nearestRoadToSighting, 18.0);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricItem({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 3),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 9.5,
+            color: Colors.grey.shade600,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }

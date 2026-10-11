@@ -310,6 +310,16 @@ export default function LiveMap({ sightings, sosAlerts, drivers, routes, center,
                       ⚠️ EMERGENCY SOS
                     </h3>
                     <p className="text-xs font-bold text-slate-800 mt-1">Type: {alert.alert_type || 'General SOS'}</p>
+                    {(alert.driver_name || alert.driver?.full_name) && (
+                      <p className="text-xs font-extrabold text-slate-900 mt-1">
+                        👤 Guide: {alert.driver_name || alert.driver?.full_name}
+                      </p>
+                    )}
+                    {(alert.driver_phone || alert.driver?.phone_number) && (
+                      <p className="text-xs font-bold text-emerald-700 mt-0.5">
+                        📞 <a href={`tel:${alert.driver_phone || alert.driver?.phone_number}`} className="hover:underline">{alert.driver_phone || alert.driver?.phone_number}</a>
+                      </p>
+                    )}
                     <p className="text-[10px] text-slate-500 mt-1">Coordinates: {pos[0].toFixed(4)}, {pos[1].toFixed(4)}</p>
                     <div className="mt-2 text-[9px] font-bold bg-red-100 text-red-800 px-2 py-0.5 rounded-md">
                       HELP REQUIRED IMMEDIATELY

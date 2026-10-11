@@ -45,12 +45,12 @@ const getSightings = async (req, res) => {
         if (error) throw error;
 
         const animalTimeLimits = {
-            'Elephant': 60,
-            'Leopard': 30,
-            'Bear': 30,
-            'Deer': 15,
-            'Peacock': 20,
-            'Other': 15
+            'elephant': 60, // Elephant stays in an area ~60 minutes
+            'leopard': 30,  // Leopard moves quickly ~30 minutes
+            'bear': 30,     // Bear ~30 minutes
+            'peacock': 20,  // Peacock/Birds ~20 minutes
+            'deer': 15,     // Deer flees quickly ~15 minutes
+            'other': 15
         };
 
         const now = new Date();
@@ -60,7 +60,7 @@ const getSightings = async (req, res) => {
 
             const diffInMinutes = (now - sightingTime) / (1000 * 60);
 
-            const maxAllowedMinutes = animalTimeLimits[sighting.animal_type] || 15;
+            const maxAllowedMinutes = animalTimeLimits[(sighting.animal_type || '').toLowerCase()] || 60;
 
             return diffInMinutes <= maxAllowedMinutes;
         });

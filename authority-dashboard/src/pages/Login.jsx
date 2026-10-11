@@ -8,8 +8,6 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  Sun,
-  Moon,
   User,
   Phone,
   CheckCircle2,
@@ -21,7 +19,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 
-export default function Login({ onLoginSuccess, theme, toggleTheme }) {
+export default function Login({ onLoginSuccess }) {
   const [isInitialSetup, setIsInitialSetup] = useState(false);
   const [authorityExists, setAuthorityExists] = useState(null);
   const [checkingAuthority, setCheckingAuthority] = useState(true);
@@ -239,16 +237,7 @@ export default function Login({ onLoginSuccess, theme, toggleTheme }) {
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-3.5 sm:p-6 md:p-8 relative overflow-hidden font-sans">
 
-      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20">
-        <button
-          onClick={toggleTheme}
-          type="button"
-          className="p-2.5 sm:p-3 bg-slate-900/60 hover:bg-slate-850 backdrop-blur-xl border border-slate-800/80 text-slate-300 hover:text-emerald-400 hover:border-emerald-500/30 rounded-2xl transition cursor-pointer flex items-center justify-center shadow-lg"
-          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-        >
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
-      </div>
+
 
       <div className="absolute top-1/4 left-1/4 w-72 sm:w-125 h-72 sm:h-125 bg-emerald-500/10 rounded-full blur-[100px] sm:blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-1/4 right-1/4 w-60 sm:w-100 h-60 sm:h-100 bg-teal-500/10 rounded-full blur-[80px] sm:blur-[100px] pointer-events-none"></div>
@@ -608,11 +597,6 @@ export default function Login({ onLoginSuccess, theme, toggleTheme }) {
           </form>
         )}
 
-        <div className="mt-6 sm:mt-8 pt-5 sm:pt-6 border-t border-slate-800/80 text-center">
-          <p className="text-[10px] sm:text-[11px] text-slate-500 leading-relaxed">
-            Authorized personnel only. All access sessions are logged and audited.
-          </p>
-        </div>
       </div>
     </div>
   );

@@ -9,24 +9,10 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const [theme, setTheme] = useState(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) return savedTheme;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  });
-
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    localStorage.setItem('theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
-  };
+    document.documentElement.classList.remove('dark');
+    localStorage.removeItem('theme');
+  }, []);
 
   useEffect(() => {
     const savedToken = localStorage.getItem('token');
@@ -68,8 +54,6 @@ export default function App() {
             ) : (
               <Login
                 onLoginSuccess={setUser}
-                theme={theme}
-                toggleTheme={toggleTheme}
               />
             )
           }
@@ -88,8 +72,6 @@ export default function App() {
                     localStorage.removeItem('user');
                     setUser(null);
                   }}
-                  theme={theme}
-                  toggleTheme={toggleTheme}
                 />
               ) : (
                 <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">

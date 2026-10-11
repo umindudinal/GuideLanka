@@ -9,16 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
 
   static String get baseUrl {
-  if (kIsWeb) {
-    return 'http://localhost:5000/api';
+    return 'https://guide-lanka-backend.vercel.app/api';
   }
-  else if (defaultTargetPlatform == TargetPlatform.android) {
-    return 'http://10.0.2.2:5000/api';
-  }
-  else {
-    return 'http://localhost:5000/api';
-  }
-}
 
   static Future<Map<String, dynamic>> loginDriver(String email, String password) async {
     try {
@@ -339,7 +331,6 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('jwt_token');
-      final currentDriverId = prefs.getString('user_id');
 
       final response = await http.get(
         Uri.parse('$baseUrl/sightings'),
@@ -350,14 +341,9 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['success']) {
-          List<dynamic> allSightings = data['data'];
-
-          List<dynamic> othersSightings = allSightings.where((sighting) {
-            return sighting['driver_id'] != currentDriverId;
-          }).toList();
-
-          return othersSightings;
+        if (data['success'] == true && data['data'] != null) {
+          final List<dynamic> allSightings = data['data'];
+          return List<dynamic>.from(allSightings);
         }
       }
       return [];

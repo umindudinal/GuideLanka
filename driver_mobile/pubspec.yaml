@@ -32,18 +32,24 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/
+    - assets/logo.png
     - assets/icon/
+    - assets/map.geojson
 
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icon/app_icon.png"
+  image_path: "assets/logo.png"
 
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  adaptive_icon_foreground: "assets/logo.png"
 
   web:
-    generate: false
+    generate: true
+    image_path: "assets/logo.png"
+    background_color: "#FFFFFF"
+    theme_color: "#0F4C3A"
   windows:
     generate: false
   macos:
