@@ -357,7 +357,8 @@ export default function DriverReviewList({ drivers, onDriverAdded }) {
         }
 
         setOtpSent(true);
-        setSuccessMsg(`Verification code sent to ${email}!`);
+        const msg = otpData.message || `Verification code sent to ${email}!`;
+        setSuccessMsg(msg);
 
         if (otpData.otp) {
           console.log(`[DEV HELPER] Email Verification Code: ${otpData.otp}`);
@@ -774,7 +775,7 @@ export default function DriverReviewList({ drivers, onDriverAdded }) {
                           });
                           const otpData = await otpRes.json();
                           if (!otpRes.ok) throw new Error(otpData.error || 'Failed to resend code.');
-                          setSuccessMsg(`Verification code resent to ${email}!`);
+                          setSuccessMsg(otpData.message || `Verification code resent to ${email}!`);
                           if (otpData.otp) {
                             console.log(`[DEV HELPER] Email Verification Code: ${otpData.otp}`);
                           }

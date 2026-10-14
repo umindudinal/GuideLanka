@@ -268,12 +268,14 @@ NOTIFY_SENDER_ID=your_sender_id
 ONESIGNAL_APP_ID=your_onesignal_app_id
 ONESIGNAL_REST_API_KEY=your_onesignal_rest_key
 
-# Email Notifications (SMTP)
+# Email Notifications (SMTP / Google App Password)
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your_email@gmail.com
-SMTP_PASS=your_email_app_password
+SMTP_PASS=your_16_char_app_password # Generated from Google Account > Security > App Passwords (spaces are automatically sanitized)
 ```
+
+> 💡 **SMTP Note:** For Gmail SMTP, enable **2-Step Verification** on your Google Account, generate a 16-character **App Password** (`Security > App Passwords`), and paste it as `SMTP_PASS`. In case of SMTP authentication issues during local testing, the backend automatically prints OTP verification codes to the server terminal console.
 
 Run locally:
 ```bash
@@ -291,6 +293,7 @@ npm install
 npm run dev
 # Dashboard launches on http://localhost:5173
 ```
+> ⚡ **Smart API Routing:** During local development (`npm run dev`), the dashboard automatically routes all API requests to the local backend on `http://localhost:5000`. In production builds, it smoothly defaults to the cloud backend (`https://guide-lanka-backend.vercel.app`). You can also explicitly specify a custom backend by setting `VITE_API_BASE_URL` in `.env`.
 
 ---
 
@@ -301,6 +304,7 @@ npm install
 npm run dev
 # Tourist portal runs on http://localhost:5174
 ```
+> ⚡ **Smart API Routing:** Connects to `http://localhost:5000` automatically during local development and defaults to the production cloud API upon deployment. Configure `VITE_API_BASE_URL` in `.env` to override.
 
 ---
 

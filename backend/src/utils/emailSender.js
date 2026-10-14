@@ -6,7 +6,7 @@ const sendVerificationEmail = async (email, otp, roleTitle = 'Safari Driver') =>
     const smtpHost = process.env.SMTP_HOST;
     const smtpPort = process.env.SMTP_PORT || 587;
     const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS;
+    const smtpPass = process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '') : '';
 
     const isAuthority = roleTitle && roleTitle.toLowerCase().includes('authority');
     const displayRole = isAuthority ? 'Park Authority Administrator' : 'Safari Driver';
