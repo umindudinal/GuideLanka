@@ -12,6 +12,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../services/api_service.dart';
 import '../services/s2r_routing_service.dart';
+import '../services/offline_storage_service.dart';
 
 import '../widgets/theme_constants.dart';
 
@@ -45,6 +46,8 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
 
   bool _isPickingLocation = false;
   LatLng? _selectedLogLocation;
+
+  int _pendingOfflineCount = 0;
 
   AnimationController? _pulseController;
   Animation<double>? _pulseAnimation;
@@ -87,20 +90,79 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
     super.dispose();
   }
 
+  Future<void> _checkPendingOfflineCount() async {
+    final offline = await OfflineStorageService.getOfflineSightings();
+    final emergencies = await OfflineStorageService.getOfflineEmergencyAlerts();
+    if (mounted) {
+      setState(() {
+        _pendingOfflineCount = offline.length + emergencies.length;
+      });
+    }
+  }
+
+  Future<void> _manualSyncOfflineData() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Text('Syncing offline data with cloud...'),
+          ],
+        ),
+        duration: Duration(seconds: 1),
+      ),
+    );
+
+    final res = await OfflineStorageService.syncPendingData();
+    final synced = (res['syncedSightings'] ?? 0) + (res['syncedEmergencies'] ?? 0);
+    await _fetchSightings();
+
+    if (mounted) {
+      if (synced > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Successfully synced $synced items to cloud!'),
+            backgroundColor: AppColors.online,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No cellular connection yet. Queued safely on device.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _fetchSightings() async {
     try {
       final sightings = await ApiService.getRecentSightings();
-      if (mounted) {
-        setState(() {
-          _recentSightings = sightings;
-        });
+      if (sightings.isNotEmpty) {
+        // Cache server sightings locally for zero-signal zones
+        await OfflineStorageService.cacheServerSightings(sightings);
+
+        // Opportunistic Sync: Upload any pending sightings now that connection is alive
+        await OfflineStorageService.syncPendingData();
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _recentSightings = [];
-        });
-      }
+      debugPrint("Offline or network error fetching sightings: $e");
+    }
+
+    // Always load combined data (Server Cache + Local Unsynced Offline Sightings)
+    final allCombined = await OfflineStorageService.getAllCombinedSightings();
+    await _checkPendingOfflineCount();
+
+    if (mounted) {
+      setState(() {
+        _recentSightings = allCombined;
+      });
     }
   }
 
@@ -555,7 +617,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
               child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
             ),
             SizedBox(width: 12),
-            Text('Publishing wildlife sighting...'),
+            Text('Logging wildlife sighting...'),
           ],
         ),
         duration: const Duration(seconds: 1),
@@ -563,24 +625,62 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
       ),
     );
 
-    final result = await ApiService.logWildlifeSighting(animalName, lat, lng);
+    try {
+      final result = await ApiService.logWildlifeSighting(animalName, lat, lng);
+      if (result['success']) {
+        _fetchSightings();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('🎉 $animalName sighting logged live on map!'),
+              backgroundColor: AppColors.online,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+        return;
+      }
+    } catch (_) {
+      // Network timeout / dead signal in Yala Block 5
+    }
 
+    // 🐾 OFFLINE FALLBACK: Save locally & immediately display on driver's map!
+    final offlineRes = await OfflineStorageService.saveOfflineSighting(animalName, lat, lng);
     if (!mounted) return;
 
-    if (result['success']) {
-      _fetchSightings();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('🎉 $animalName sighting logged live on map!'),
-          backgroundColor: AppColors.online,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+    if (offlineRes['success'] == true) {
+      await _checkPendingOfflineCount();
+      final all = await OfflineStorageService.getAllCombinedSightings();
+      if (mounted) {
+        setState(() {
+          _recentSightings = all;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.cloud_off_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '📶 Offline: $animalName saved locally on map! Will auto-sync when connection returns.',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.amber.shade900,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to save sighting: ${result['error']}'),
+          content: Text('Failed to save sighting: ${offlineRes['error']}'),
           backgroundColor: AppColors.offline,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -765,6 +865,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                           final animalType = sighting['animal_type'] ?? 'Unknown';
                           final isImportant = animalType.toLowerCase() == 'leopard' || animalType.toLowerCase() == 'elephant';
                           final isSelected = _selectedSighting != null && _selectedSighting!['id'] == sighting['id'];
+                          final isOffline = sighting['is_offline'] == true;
 
                           return Marker(
                             width: 54.0,
@@ -774,30 +875,77 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                               onTap: () {
                                 _onSightingSelected(sighting);
                               },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                decoration: BoxDecoration(
-                                  color: isSelected ? AppColors.accentLight : Colors.white,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? AppColors.accent
-                                        : (isImportant ? AppColors.accent : AppColors.primary),
-                                    width: isSelected ? 3.5 : 2.5,
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? AppColors.accentLight : Colors.white,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? AppColors.accent
+                                            : (isImportant ? AppColors.accent : AppColors.primary),
+                                        width: isSelected ? 3.5 : 2.5,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: (isImportant ? AppColors.accent : AppColors.primary).withValues(alpha: 0.35),
+                                          blurRadius: isSelected ? 14 : 8,
+                                          spreadRadius: isSelected ? 3 : 1,
+                                        )
+                                      ],
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        _getAnimalEmoji(animalType),
+                                        style: TextStyle(fontSize: isSelected ? 28 : 24),
+                                      ),
+                                    ),
                                   ),
+                                  if (isOffline)
+                                    Positioned(
+                                      top: -2,
+                                      right: -2,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(3),
+                                        decoration: BoxDecoration(
+                                          color: Colors.amber.shade900,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: Colors.white, width: 1.5),
+                                        ),
+                                        child: const Icon(Icons.cloud_off_rounded, color: Colors.white, size: 10),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+
+                        ...OfflineStorageService.rangerStations.map((station) {
+                          return Marker(
+                            width: 44.0,
+                            height: 44.0,
+                            point: station.location,
+                            child: GestureDetector(
+                              onTap: () => _showRangerStationDetails(station),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1B5E20),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 2.5),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: (isImportant ? AppColors.accent : AppColors.primary).withValues(alpha: 0.35),
-                                      blurRadius: isSelected ? 14 : 8,
-                                      spreadRadius: isSelected ? 3 : 1,
-                                    )
+                                      color: const Color(0xFF1B5E20).withValues(alpha: 0.45),
+                                      blurRadius: 8,
+                                      spreadRadius: 1,
+                                    ),
                                   ],
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    _getAnimalEmoji(animalType),
-                                    style: TextStyle(fontSize: isSelected ? 28 : 24),
-                                  ),
+                                child: const Center(
+                                  child: Icon(Icons.shield_rounded, color: Colors.white, size: 20),
                                 ),
                               ),
                             ),
@@ -919,27 +1067,59 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                                 ],
                               ),
 
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.radar_rounded, color: AppColors.accent, size: 14),
-                                    const SizedBox(width: 5),
-                                    Text(
-                                      '${_recentSightings.length} Spotted',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 11,
+                              Row(
+                                children: [
+                                  if (_pendingOfflineCount > 0)
+                                    GestureDetector(
+                                      onTap: _manualSyncOfflineData,
+                                      child: Container(
+                                        margin: const EdgeInsets.only(right: 8),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: Colors.amber.shade900,
+                                          borderRadius: BorderRadius.circular(20),
+                                          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.sync_rounded, color: Colors.white, size: 14),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '$_pendingOfflineCount Queued',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ],
-                                ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.radar_rounded, color: AppColors.accent, size: 14),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          '${_recentSightings.length} Spotted',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -1726,6 +1906,104 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
           ),
         ),
       ],
+    );
+  }
+
+  void _showRangerStationDetails(RangerStation station) {
+    final lat = _currentLocation?.latitude ?? 6.5512;
+    final lng = _currentLocation?.longitude ?? 81.3654;
+    final dist = station.distanceInKm(lat, lng).toStringAsFixed(1);
+    final bearing = station.compassBearing(lat, lng);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.shield_rounded, color: Color(0xFF1B5E20), size: 28),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        station.name,
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                      ),
+                      Text(
+                        'Offline Safe Haven • ${station.code}',
+                        style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.bgSand,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Distance:', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                      Text('$dist km (Heading $bearing)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Emergency Radio:', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                      Text(station.emergencyChannel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    station.description,
+                    style: const TextStyle(fontSize: 12, color: AppColors.textDark, height: 1.3),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              icon: const Icon(Icons.center_focus_strong_rounded),
+              label: const Text('FOCUS STATION ON MAP', style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () {
+                Navigator.pop(context);
+                _mapController.move(station.location, 17.5);
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -9,6 +9,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
+import '../services/offline_storage_service.dart';
 
 import '../widgets/theme_constants.dart';
 
@@ -209,26 +210,258 @@ class _EmergencyScreenState extends State<EmergencyScreen> with SingleTickerProv
     Navigator.pop(context);
 
     if (result['success']) {
-
       _showSuccessDialog();
       setState(() => _selectedAlertType = 'SOS');
     } else {
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          content: Row(
-            children: [
-              const Icon(Icons.error_outline_rounded, color: Colors.white),
-              const SizedBox(width: 12),
-              Expanded(child: Text(result['error'] ?? 'Failed to send SOS')),
-            ],
-          ),
-          backgroundColor: Colors.orange.shade800,
-        ),
+      // 🚨 Zero-signal Offline Handling: Save locally & open Off-Grid protocol
+      await OfflineStorageService.saveOfflineEmergencyAlert(
+        lat: _currentLat!,
+        lng: _currentLng!,
+        emergencyType: _selectedAlertType,
       );
+
+      if (mounted) {
+        _showOfflineSOSDialog();
+      }
     }
+  }
+
+  Future<void> _sendDirectEmergencySms(String targetPhone) async {
+    try {
+      final smsBody = await OfflineStorageService.generateEmergencySmsBody(
+        emergencyType: _selectedAlertType,
+        lat: _currentLat ?? 6.5512,
+        lng: _currentLng ?? 81.3654,
+      );
+
+      final cleanPhone = targetPhone.replaceAll(RegExp(r'[^\d+]'), '');
+      final Uri smsUri = Uri(
+        scheme: 'sms',
+        path: cleanPhone,
+        queryParameters: <String, String>{
+          'body': smsBody,
+        },
+      );
+
+      if (await canLaunchUrl(smsUri)) {
+        await launchUrl(smsUri);
+      } else {
+        await launchUrl(smsUri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('Error launching emergency SMS: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open SMS app: $e'),
+            backgroundColor: Colors.red.shade800,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showOfflineSOSDialog() {
+    final nearbyStations = _currentLat != null && _currentLng != null
+        ? OfflineStorageService.getNearbyRangerStations(_currentLat!, _currentLng!)
+        : <Map<String, dynamic>>[];
+
+    final nearest = nearbyStations.isNotEmpty ? nearbyStations.first : null;
+    final nearestStation = nearest != null ? nearest['station'] as RangerStation : null;
+    final nearestDist = nearest != null ? (nearest['distanceKm'] as double).toStringAsFixed(1) : null;
+    final nearestBearing = nearest != null ? nearest['bearing'] as String : null;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24.0),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: const Icon(
+                    Icons.signal_cellular_connected_no_internet_4_bar_rounded,
+                    color: Colors.deepOrange,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'OFF-GRID EMERGENCY PROTOCOL',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'No cellular internet in Yala Block 5. Alert saved locally on device!',
+                        style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.amber.shade300),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.sms_failed_rounded, color: Colors.amber.shade900, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Instant 2G Low-Bandwidth SMS',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: Colors.amber.shade900,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Even with 0 data bars, 2G SMS can punch through jungle canopy to Wildlife Ranger HQ with your satellite coordinates.',
+                    style: TextStyle(fontSize: 12, color: AppColors.textDark, height: 1.3),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepOrange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 3,
+              ),
+              icon: const Icon(Icons.send_rounded, size: 20),
+              label: const Text(
+                'DISPATCH SOS VIA 2G SMS',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 0.5),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                final targetNumber = nearestStation?.phoneNumber ?? '+94771234567';
+                _sendDirectEmergencySms(targetNumber);
+              },
+            ),
+
+            const SizedBox(height: 14),
+
+            if (nearestStation != null) ...[
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSand,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: const BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.shield_rounded, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            nearestStation.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '📍 $nearestDist km away (Heading $nearestBearing)',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.phone_in_talk_rounded, color: AppColors.online),
+                      tooltip: 'Call Station',
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _makePhoneCall(nearestStation.phoneNumber);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('KEEP ALERT QUEUED IN DEVICE', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showSuccessDialog() {
@@ -860,9 +1093,143 @@ class _EmergencyScreenState extends State<EmergencyScreen> with SingleTickerProv
               ),
             ),
 
+            const SizedBox(height: 20),
+
+            _buildOfflineSafeHavensSection(),
+
             const SizedBox(height: 24),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildOfflineSafeHavensSection() {
+    final lat = _currentLat ?? 6.5512;
+    final lng = _currentLng ?? 81.3654;
+    final nearby = OfflineStorageService.getNearbyRangerStations(lat, lng);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+        boxShadow: AppShadows.softCardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryExtraLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.shield_outlined, color: AppColors.primary, size: 20),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Yala Block 5 Ranger Posts',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AppColors.textDark),
+                    ),
+                    Text(
+                      'Offline Safe Havens & Ranger Patrol Units',
+                      style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.satellite_alt_rounded, color: Colors.green.shade800, size: 12),
+                    const SizedBox(width: 4),
+                    Text(
+                      'GPS Offline',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade800),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          ...nearby.map((item) {
+            final station = item['station'] as RangerStation;
+            final dist = (item['distanceKm'] as double).toStringAsFixed(1);
+            final bearing = item['bearing'] as String;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.bgSand,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.06)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(
+                        bearing,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          station.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textDark),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '📍 $dist km away • ${station.emergencyChannel}',
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.sms_outlined, color: Colors.deepOrange, size: 20),
+                    tooltip: 'Send 2G SMS',
+                    onPressed: () => _sendDirectEmergencySms(station.phoneNumber),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.phone_in_talk_rounded, color: AppColors.online, size: 20),
+                    tooltip: 'Call Station',
+                    onPressed: () => _makePhoneCall(station.phoneNumber),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
