@@ -5,15 +5,21 @@ import {
   TileLayer,
   Marker,
   Popup,
-  Polyline,
   CircleMarker,
-  Polygon,
-  Tooltip,
+  GeoJSON,
   useMap
 } from 'react-leaflet';
 
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import roadDataRaw from '../assets/yala_block_5_and_6.geojson?raw';
+
+let roadGeoJson = null;
+try {
+  roadGeoJson = JSON.parse(roadDataRaw);
+} catch (e) {
+  console.error("Failed to parse road GeoJSON:", e);
+}
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -54,58 +60,8 @@ const animalIcons = {
 
 const yalaCenter = [6.390, 81.380];
 
-const yalaBlock5Coords = [
-  [6.440, 81.430],
-  [6.465, 81.430],
-  [6.475, 81.460],
-  [6.445, 81.465],
-  [6.435, 81.445]
-];
-
-const yalaBlock6Coords = [
-  [6.310, 81.210],
-  [6.350, 81.200],
-  [6.380, 81.240],
-  [6.340, 81.270],
-  [6.300, 81.250]
-];
 
 
-const routeCoords = {
-  'route-1': [
-    [6.370, 81.510],
-    [6.372, 81.514],
-    [6.375, 81.518],
-    [6.378, 81.522],
-  ],
-  'route-2': [
-    [6.378, 81.522],
-    [6.381, 81.527],
-    [6.385, 81.533],
-    [6.390, 81.540],
-  ],
-  'route-3': [
-    [6.370, 81.510],
-    [6.368, 81.505],
-    [6.362, 81.500],
-    [6.358, 81.492],
-  ],
-  'route-4': [
-    [6.375, 81.518],
-    [6.380, 81.512],
-    [6.386, 81.506],
-    [6.392, 81.498],
-  ]
-};
-
-const getCongestionColor = (congestion) => {
-  switch (congestion?.toUpperCase()) {
-    case 'HIGH': return '#ef4444';
-    case 'MODERATE': return '#f59e0b';
-    case 'LOW': return '#10b981';
-    default: return '#64748b';
-  }
-};
 
 function ChangeView({ center, zoom }) {
   const map = useMap();
@@ -196,72 +152,32 @@ export default function LiveMap({ sightings, sosAlerts, drivers, routes, center,
             {isSatellite ? '🗺️' : '🛰️'}
           </button>
         </div>
-      </div>
-
-      <Polygon
-        positions={yalaBlock5Coords}
-        pathOptions={{
-          color: '#fbbf24',
-          fillColor: '#fbbf24',
-          fillOpacity: 0.15,
-          weight: 2,
-          dashArray: '6, 6'
-        }}
-      >
-        <Tooltip sticky>
-          <div className="font-sans font-bold text-xs text-amber-500">
-            🚧 GEOFENCE ACTIVE: Yala Block 5 (Galge)
-          </div>
-        </Tooltip>
-      </Polygon>
-
-      <Polygon
-        positions={yalaBlock6Coords}
-        pathOptions={{
-          color: '#38bdf8',
-          fillColor: '#38bdf8',
-          fillOpacity: 0.15,
-          weight: 2,
-          dashArray: '6, 6'
-        }}
-      >
-        <Tooltip sticky>
-          <div className="font-sans font-bold text-xs text-sky-500">
-            🚧 GEOFENCE ACTIVE: Yala Block 6 (Lunugamvehera)
-          </div>
-        </Tooltip>
-      </Polygon>
-
-      {routes.map((route) => {
-        const coords = routeCoords[route.id] || [];
-        if (coords.length === 0 || route.status === 'CLOSED') return null;
-
-        return (
-          <Polyline
-            key={route.id}
-            positions={coords}
-            color={getCongestionColor(route.congestion)}
-            weight={5}
-            opacity={0.7}
-            dashArray={route.congestion === 'HIGH' ? "5, 10" : undefined}
-          >
-            <Popup>
-              <div className="p-1 font-sans">
-                <h4 className="font-extrabold text-slate-800 text-xs">{route.name}</h4>
-                <p className="text-[10px] text-slate-500 mt-0.5">{route.checkpoints}</p>
-                <div className="flex gap-2 mt-2">
-                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase ${
-                    route.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                  }`}>{route.status}</span>
-                  <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                    Congestion: {route.congestion}
-                  </span>
-                </div>
-              </div>
-            </Popup>
-          </Polyline>
-        );
-      })}
+      </div>      {roadGeoJson && (
+        <GeoJSON
+          data={roadGeoJson}
+          style={{
+            color: '#f59e0b',
+            weight: 2.5,
+            opacity: 0.85,
+            lineCap: 'round',
+            lineJoin: 'round'
+          }}
+          onEachFeature={(feature, layer) => {
+            layer.bindTooltip("🛣️ Safari Track (Block 5 & 6)", {
+              sticky: true,
+              direction: 'top'
+            });
+            layer.on({
+              mouseover: (e) => {
+                e.target.setStyle({ weight: 4.5, color: '#fbbf24', opacity: 1 });
+              },
+              mouseout: (e) => {
+                e.target.setStyle({ weight: 2.5, color: '#f59e0b', opacity: 0.85 });
+              }
+            });
+          }}
+        />
+      )}
 
       {activeJeeps.map((jeep) => (
         <Marker key={jeep.id} position={jeep.position} icon={jeepDivIcon}>

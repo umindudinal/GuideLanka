@@ -25,7 +25,9 @@ class SafariMapScreen extends StatefulWidget {
 
 class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProviderStateMixin {
 
-  LatLng? _currentLocation;
+  static const LatLng _defaultLocation = LatLng(6.540324565195912, 81.30531824100515);
+
+  LatLng? _currentLocation = _defaultLocation;
 
   final MapController _mapController = MapController();
 
@@ -185,85 +187,114 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
 
   Future<void> _loadRoadsFromGeoJson() async {
     try {
-      final String jsonString = await rootBundle.loadString('assets/map.geojson');
-      final Map<String, dynamic> data = jsonDecode(jsonString);
-      _s2rService.buildGraphFromGeoJson(data);
-      final List<dynamic> features = data['features'] ?? [];
+      final List<dynamic> allFeatures = [];
       final List<Polyline> polylines = [];
       LatLng? firstPoint;
 
-      for (final feature in features) {
-        final geometry = feature['geometry'];
-        if (geometry == null) continue;
-        final type = geometry['type'];
-        final coordinates = geometry['coordinates'];
+      void parseFeatures(List<dynamic> features, {Color roadColor = const Color(0xFFFFB74D), Color borderColor = const Color(0xFFFB8C00)}) {
+        for (final feature in features) {
+          final geometry = feature['geometry'];
+          if (geometry == null) continue;
+          final type = geometry['type'];
+          final coordinates = geometry['coordinates'];
 
-        if (type == 'LineString' && coordinates is List) {
-          final List<LatLng> points = [];
-          for (final coord in coordinates) {
-            if (coord is List && coord.length >= 2) {
-              final double lng = (coord[0] as num).toDouble();
-              final double lat = (coord[1] as num).toDouble();
-              final p = LatLng(lat, lng);
-              points.add(p);
-              firstPoint ??= p;
-            }
-          }
-          if (points.isNotEmpty) {
-            polylines.add(
-              Polyline(
-                points: points,
-                color: const Color(0xFFFFB74D),
-                strokeWidth: 3.5,
-                borderColor: const Color(0xFFFB8C00).withValues(alpha: 0.5),
-                borderStrokeWidth: 0.8,
-                strokeCap: StrokeCap.round,
-                strokeJoin: StrokeJoin.round,
-              ),
-            );
-          }
-        } else if (type == 'MultiLineString' && coordinates is List) {
-          for (final line in coordinates) {
-            if (line is List) {
-              final List<LatLng> points = [];
-              for (final coord in line) {
-                if (coord is List && coord.length >= 2) {
-                  final double lng = (coord[0] as num).toDouble();
-                  final double lat = (coord[1] as num).toDouble();
-                  final p = LatLng(lat, lng);
-                  points.add(p);
-                  firstPoint ??= p;
-                }
+          if (type == 'LineString' && coordinates is List) {
+            final List<LatLng> points = [];
+            for (final coord in coordinates) {
+              if (coord is List && coord.length >= 2) {
+                final double lng = (coord[0] as num).toDouble();
+                final double lat = (coord[1] as num).toDouble();
+                final p = LatLng(lat, lng);
+                points.add(p);
+                firstPoint ??= p;
               }
-              if (points.isNotEmpty) {
-                polylines.add(
-                  Polyline(
-                    points: points,
-                    color: const Color(0xFFFFB74D),
-                    strokeWidth: 3.5,
-                    borderColor: const Color(0xFFFB8C00).withValues(alpha: 0.5),
-                    borderStrokeWidth: 0.8,
-                    strokeCap: StrokeCap.round,
-                    strokeJoin: StrokeJoin.round,
-                  ),
-                );
+            }
+            if (points.isNotEmpty) {
+              polylines.add(
+                Polyline(
+                  points: points,
+                  color: roadColor,
+                  strokeWidth: 3.5,
+                  borderColor: borderColor.withValues(alpha: 0.5),
+                  borderStrokeWidth: 0.8,
+                  strokeCap: StrokeCap.round,
+                  strokeJoin: StrokeJoin.round,
+                ),
+              );
+            }
+          } else if (type == 'MultiLineString' && coordinates is List) {
+            for (final line in coordinates) {
+              if (line is List) {
+                final List<LatLng> points = [];
+                for (final coord in line) {
+                  if (coord is List && coord.length >= 2) {
+                    final double lng = (coord[0] as num).toDouble();
+                    final double lat = (coord[1] as num).toDouble();
+                    final p = LatLng(lat, lng);
+                    points.add(p);
+                    firstPoint ??= p;
+                  }
+                }
+                if (points.isNotEmpty) {
+                  polylines.add(
+                    Polyline(
+                      points: points,
+                      color: roadColor,
+                      strokeWidth: 3.5,
+                      borderColor: borderColor.withValues(alpha: 0.5),
+                      borderStrokeWidth: 0.8,
+                      strokeCap: StrokeCap.round,
+                      strokeJoin: StrokeJoin.round,
+                    ),
+                  );
+                }
               }
             }
           }
         }
+      }
+
+      // 1. Load Yala Block 5 & 6 road GeoJSON
+      try {
+        final String yalaJsonString = await rootBundle.loadString('assets/yala_block_5_and_6.geojson');
+        final Map<String, dynamic> yalaData = jsonDecode(yalaJsonString);
+        final List<dynamic> yalaFeatures = yalaData['features'] ?? [];
+        allFeatures.addAll(yalaFeatures);
+        parseFeatures(yalaFeatures, roadColor: const Color(0xFFFFB74D), borderColor: const Color(0xFFFB8C00));
+      } catch (e) {
+        debugPrint('yala_block_5_and_6.geojson load exception: $e');
+      }
+
+      // 2. Load map.geojson
+      try {
+        final String mapJsonString = await rootBundle.loadString('assets/map.geojson');
+        final Map<String, dynamic> mapData = jsonDecode(mapJsonString);
+        final List<dynamic> mapFeatures = mapData['features'] ?? [];
+        allFeatures.addAll(mapFeatures);
+        parseFeatures(mapFeatures, roadColor: const Color(0xFFFFB74D), borderColor: const Color(0xFFFB8C00));
+      } catch (e) {
+        debugPrint('map.geojson load exception: $e');
+      }
+
+      // Build S2R routing graph from combined features
+      if (allFeatures.isNotEmpty) {
+        _s2rService.buildGraphFromGeoJson({
+          'type': 'FeatureCollection',
+          'features': allFeatures,
+        });
       }
 
       if (mounted) {
         setState(() {
           _roadPolylines = polylines;
-          _currentLocation ??= firstPoint ?? const LatLng(6.8086, 79.9925);
+          _currentLocation ??= _defaultLocation;
         });
-        if (_isMapReady) {
-          _mapController.move(const LatLng(6.8086, 79.9925), 17.5);
+        if (_isMapReady && _currentLocation != null) {
+          _mapController.move(_currentLocation!, 16.0);
         }
       }
     } catch (e) {
-      debugPrint('Error loading map.geojson: $e');
+      debugPrint('Error loading roads GeoJSON: $e');
     }
   }
 
@@ -273,7 +304,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
       if (!serviceEnabled) {
         if (mounted && _currentLocation == null) {
           setState(() {
-            _currentLocation = const LatLng(6.8086, 79.9925);
+            _currentLocation = _defaultLocation;
           });
         }
         return;
@@ -285,7 +316,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
         if (permission == LocationPermission.denied) {
           if (mounted && _currentLocation == null) {
             setState(() {
-              _currentLocation = const LatLng(6.8086, 79.9925);
+              _currentLocation = _defaultLocation;
             });
           }
           return;
@@ -327,7 +358,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
       debugPrint('Live tracking error: $e');
       if (mounted && _currentLocation == null) {
         setState(() {
-          _currentLocation = const LatLng(6.8086, 79.9925);
+          _currentLocation = _defaultLocation;
         });
       }
     }
@@ -391,7 +422,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
     final LatLng targetLocation = customLocation ??
         _selectedLogLocation ??
         _currentLocation ??
-        const LatLng(6.8086, 79.9925);
+        _defaultLocation;
     final bool isCustom = customLocation != null ||
         (_selectedLogLocation != null && _currentLocation != null && _selectedLogLocation != _currentLocation);
 
@@ -598,7 +629,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
   }
 
   Future<void> _saveSighting(String animalName, {LatLng? targetLocation}) async {
-    final loc = targetLocation ?? _selectedLogLocation ?? _currentLocation ?? const LatLng(6.8086, 79.9925);
+    final loc = targetLocation ?? _selectedLogLocation ?? _currentLocation ?? _defaultLocation;
     final lat = loc.latitude;
     final lng = loc.longitude;
 
@@ -732,13 +763,13 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                 FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
-                    initialCenter: _currentLocation ?? const LatLng(6.8086, 79.9925),
-                    initialZoom: 17.5,
+                    initialCenter: _currentLocation ?? _defaultLocation,
+                    initialZoom: 16.0,
                     onMapReady: () {
                       setState(() {
                         _isMapReady = true;
                       });
-                      _mapController.move(const LatLng(6.8086, 79.9925), 17.5);
+                      _mapController.move(_currentLocation ?? _defaultLocation, 16.0);
                     },
                     onPositionChanged: (camera, hasGesture) {
                       if (_isPickingLocation && hasGesture) {
@@ -803,22 +834,6 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                       PolylineLayer(
                         polylines: _buildS2RRoutePolylines(),
                       ),
-
-                    PolygonLayer(
-                      polygons: [
-                        Polygon(
-                          points: const [
-                            LatLng(6.3000, 81.2000),
-                            LatLng(6.4800, 81.2000),
-                            LatLng(6.4800, 81.5500),
-                            LatLng(6.3000, 81.5500),
-                          ],
-                          color: AppColors.primary.withValues(alpha: 0.08),
-                          borderStrokeWidth: 3.0,
-                          borderColor: AppColors.primary,
-                        ),
-                      ],
-                    ),
 
                     MarkerLayer(
                       markers: [
@@ -919,34 +934,6 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                                       ),
                                     ),
                                 ],
-                              ),
-                            ),
-                          );
-                        }),
-
-                        ...OfflineStorageService.rangerStations.map((station) {
-                          return Marker(
-                            width: 44.0,
-                            height: 44.0,
-                            point: station.location,
-                            child: GestureDetector(
-                              onTap: () => _showRangerStationDetails(station),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1B5E20),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 2.5),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF1B5E20).withValues(alpha: 0.45),
-                                      blurRadius: 8,
-                                      spreadRadius: 1,
-                                    ),
-                                  ],
-                                ),
-                                child: const Center(
-                                  child: Icon(Icons.shield_rounded, color: Colors.white, size: 20),
-                                ),
                               ),
                             ),
                           );
@@ -1212,7 +1199,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                         activeColor: const Color(0xFFFFB74D),
                         onPressed: () {
                           if (_isMapReady) {
-                            _mapController.move(const LatLng(6.8086, 79.9925), 17.5);
+                            _mapController.move(_defaultLocation, 16.0);
                           }
                         },
                       ),
@@ -1527,7 +1514,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
     final lat = double.tryParse(sighting['location_lat'].toString()) ?? 0.0;
     final lng = double.tryParse(sighting['location_lng'].toString()) ?? 0.0;
     final sightingPos = LatLng(lat, lng);
-    final driverPos = _currentLocation ?? const LatLng(6.8086, 79.9925);
+    final driverPos = _currentLocation ?? _defaultLocation;
     final animalType = sighting['animal_type']?.toString() ?? 'Wildlife';
 
     DateTime? sightingTime;
@@ -1608,7 +1595,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
     }
 
     // 2. Approach from Driver position to nearest road access entrance
-    final driverPos = _currentLocation ?? const LatLng(6.8086, 79.9925);
+    final driverPos = _currentLocation ?? _defaultLocation;
     if (S2RRoutingService.distanceMeters(driverPos, _activeS2RRoute!.nearestRoadToDriver) > 3.0) {
       lines.add(
         Polyline(
@@ -1906,104 +1893,6 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
           ),
         ),
       ],
-    );
-  }
-
-  void _showRangerStationDetails(RangerStation station) {
-    final lat = _currentLocation?.latitude ?? 6.5512;
-    final lng = _currentLocation?.longitude ?? 81.3654;
-    final dist = station.distanceInKm(lat, lng).toStringAsFixed(1);
-    final bearing = station.compassBearing(lat, lng);
-
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(Icons.shield_rounded, color: Color(0xFF1B5E20), size: 28),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        station.name,
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-                      ),
-                      Text(
-                        'Offline Safe Haven • ${station.code}',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.bgSand,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Distance:', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                      Text('$dist km (Heading $bearing)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Emergency Radio:', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                      Text(station.emergencyChannel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    station.description,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textDark, height: 1.3),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              icon: const Icon(Icons.center_focus_strong_rounded),
-              label: const Text('FOCUS STATION ON MAP', style: TextStyle(fontWeight: FontWeight.bold)),
-              onPressed: () {
-                Navigator.pop(context);
-                _mapController.move(station.location, 17.5);
-              },
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

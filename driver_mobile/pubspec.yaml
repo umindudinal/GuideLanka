@@ -36,6 +36,7 @@ flutter:
     - assets/logo.png
     - assets/icon/
     - assets/map.geojson
+    - assets/yala_block_5_and_6.geojson
 
 flutter_launcher_icons:
   android: true

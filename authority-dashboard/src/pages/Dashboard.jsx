@@ -513,6 +513,7 @@ export default function Dashboard({ user, onUserUpdate, onLogout }) {
                   <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span> Active Jeep</span>
                   <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-amber-500 rounded-full"></span> Wildlife Sighting</span>
                   <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping"></span> SOS Emergency</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3.5 h-1 bg-amber-500 rounded-sm"></span> Roads (Block 5 & 6)</span>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
