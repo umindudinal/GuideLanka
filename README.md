@@ -114,7 +114,7 @@ Quantifies the observational value of a sighting based on species rarity, freshn
 $$S_i = AW_i \times TD_i \times R_i$$
 
 ### 3. Safari Road Graph Network & Dijkstra Routing
-* Road networks are modeled as an interconnected graph $G = (V, E)$ parsed directly from park GeoJSON vector coordinates.
+* Road networks are modeled as an interconnected graph $G = (V, E)$ parsed directly from park GeoJSON vector coordinates (such as the comprehensive Yala Block 5 & 6 topology containing over 4,600 nodes).
 * Disconnected line segments are dynamically bridged using a 15-meter proximity threshold (`_ensureFullyConnected()`).
 * Dijkstra's shortest-path algorithm calculates the optimal curved path along authentic safari trails, preventing unrealistic straight-line vector cuts across topography.
 
@@ -134,7 +134,8 @@ Where:
 
 ### 1. 🛡️ Park Authority Command Dashboard (`/authority-dashboard`)
 Dedicated interface for park rangers and administrative wardens:
-* **Live GIS Tracking Map**: Real-time Leaflet visualization of active safari jeeps, live sightings, track routes, and buffer zones.
+* **Live GIS Tracking Map**: Real-time Leaflet visualization of active safari jeeps, live sightings, park trail networks, and emergency incidents.
+* **Safari Road Network**: Interactive GeoJSON road layer rendering authentic Yala Block 5 & 6 tracks with hover highlights and detailed trail inspection tooltips.
 * **SOS & Incident Center with Direct Call**:
   * Displays emergency alerts (e.g. `LOST_ROUTE`, `VEHICLE_BREAKDOWN`, `MEDICAL_EMERGENCY`).
   * Shows **Driver Name** and **Mobile Phone Number** with an instant **"Call Now"** button (`tel:` link).
@@ -147,6 +148,7 @@ Dedicated interface for park rangers and administrative wardens:
 ### 2. 📱 Safari Driver Mobile App (`/driver_mobile`)
 Field application for safari jeep drivers built in Flutter:
 * **Live Safari Radar**: Real-time map displaying recent sightings with remaining lifespan countdown badges.
+* **Yala Block 5 & 6 Safari Trails**: High-precision road network rendered directly from authentic GeoJSON vector data, calibrated to the active park tracks (`6.540325, 81.305318`).
 * **Turn-by-Turn S2R Road Navigation**: Illuminated neon-blue routes that strictly follow safari road curves.
 * **Interactive Sighting Logger**: Tap or drag-and-drop marker on the map to pinpoint exact animal sighting locations.
 * **Emergency SOS Transmitter**: Broadcasts vehicle GPS coordinates and emergency type directly to ranger control.
@@ -175,6 +177,7 @@ Responsive web portal for domestic and international travelers:
 GuideLanka/
 ├── 📁 authority-dashboard/      # React 19 + Vite Authority Management Dashboard
 │   ├── 📁 src/
+│   │   ├── 📁 assets/           # Yala Block 5 & 6 GeoJSON road network & logos
 │   │   ├── 📁 components/       # SOSPanel, LiveMap, DriverReviewList, Sidebar, etc.
 │   │   ├── 📁 pages/            # Dashboard, Login
 │   │   └── 📁 services/         # Supabase client & API config
@@ -194,7 +197,7 @@ GuideLanka/
 │
 ├── 📁 driver_mobile/            # Cross-Platform Flutter Mobile Application
 │   ├── 📁 android/              # Native Android configuration & launcher icons
-│   ├── 📁 assets/               # GeoJSON road networks & GuideLanka logo assets
+│   ├── 📁 assets/               # Yala Block 5 & 6 GeoJSON road network & logo assets
 │   ├── 📁 lib/
 │   │   ├── 📁 screens/          # SafariMap, Login, Home, SOS, Chat, Profile
 │   │   ├── 📁 services/         # S2RRoutingService, ApiService, Geolocator
@@ -223,7 +226,7 @@ GuideLanka/
 | **Authority Dashboard**| React 19, Vite, Tailwind CSS v4 | Ranger control room command center |
 | **Tourist Web Portal** | React 19, Vite, Tailwind CSS v4 | Tourist discovery & booking interface |
 | **Mobile Application** | Flutter (Dart 3.x), `flutter_map`, `geolocator` | Cross-platform safari driver navigation app |
-| **GIS & Spatial** | Leaflet, React-Leaflet, OpenStreetMap, GeoJSON | Safari road topologies, geofences, live telemetry |
+| **GIS & Spatial** | Leaflet, React-Leaflet, OpenStreetMap, GeoJSON | Safari road topologies (Yala Block 5 & 6), live telemetry |
 | **Notifications** | OneSignal, NotifyLK SMS, Nodemailer | Real-time push alerts, SMS OTP, booking confirmations |
 
 ---
