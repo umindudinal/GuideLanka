@@ -38,13 +38,13 @@ export default function Hero() {
                 <Calendar size={18} />
                 Plan Your Safari
               </Link>
-              <Link
+              {/* <Link
                 to="/map"
                 className="w-full sm:w-auto bg-white/10 hover:bg-white/15 text-white border border-white/20 px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl font-bold text-sm sm:text-base transition-all backdrop-blur-sm flex items-center justify-center gap-2 transform active:scale-95"
               >
                 <Map size={18} className="text-green-400" />
                 Live Safari Map
-              </Link>
+              </Link> */}
             </div>
 
           </div>
