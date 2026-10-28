@@ -26,6 +26,7 @@ const jeepIcon = new L.Icon({
 export default function MapPage() {
   const { user } = useContext(AuthContext); 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isSatellite, setIsSatellite] = useState(true);
 
   const [guideName, setGuideName] = useState("Loading...");
   const [vehicleNo, setVehicleNo] = useState("Loading...");
@@ -255,17 +256,49 @@ export default function MapPage() {
               scrollWheelZoom={true} 
               className="w-full h-full min-h-87.5"
             >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                maxZoom={19}
-              />
+              {isSatellite ? (
+                <>
+                  <TileLayer
+                    attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                  />
+                  <TileLayer
+                    attribution='&copy; Esri World Transportation'
+                    url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"
+                    opacity={0.7}
+                  />
+                  <TileLayer
+                    attribution='&copy; Esri World Boundaries and Places'
+                    url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+                    opacity={0.9}
+                  />
+                </>
+              ) : (
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  maxZoom={19}
+                />
+              )}
+
+              <div className="leaflet-top leaflet-right" style={{ marginTop: '70px', marginRight: '10px', pointerEvents: 'auto' }}>
+                <div className="leaflet-bar leaflet-control">
+                  <button
+                    onClick={() => setIsSatellite(!isSatellite)}
+                    className="w-10 h-10 bg-white/95 backdrop-blur-md border border-gray-200 text-gray-700 hover:text-green-700 hover:bg-white flex items-center justify-center rounded-xl shadow-md cursor-pointer transition select-none text-base"
+                    title={isSatellite ? "Switch to Normal Map View" : "Switch to Satellite Imagery View"}
+                    type="button"
+                  >
+                    {isSatellite ? '🗺️' : '🛰️'}
+                  </button>
+                </div>
+              </div>
 
               <Polyline 
                 positions={routeCoordinates} 
-                color="#16a34a" 
+                color={isSatellite ? "#00e5ff" : "#16a34a"} 
                 weight={6} 
-                opacity={0.8} 
+                opacity={0.9} 
                 dashArray="10, 10" 
               />
 

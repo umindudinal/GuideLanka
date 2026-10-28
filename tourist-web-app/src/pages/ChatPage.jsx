@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { Send, PhoneCall, Info, X, Calendar, Clock, Map as MapIcon, AlertTriangle, MoreVertical } from 'lucide-react';
+import { Send, PhoneCall, Info, X, Calendar, Clock, AlertTriangle, MoreVertical } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { AuthContext } from '../context/AuthContext';
 import { API_BASE_URL } from '../services/apiConfig';
@@ -410,16 +410,6 @@ export default function ChatPage() {
                     <div>
                       <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Time Slot</p>
                       <p className="font-bold text-sm text-gray-700 capitalize mt-0.5">{bookingDetails.time_slot}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center text-gray-700">
-                    <div className="p-2.5 bg-green-50 text-green-700 rounded-xl mr-3">
-                      <MapIcon size={18} />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Preferred Zone</p>
-                      <p className="font-bold text-sm text-gray-700 capitalize mt-0.5">{bookingDetails.zone}</p>
                     </div>
                   </div>
 

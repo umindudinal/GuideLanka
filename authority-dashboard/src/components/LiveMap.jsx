@@ -58,7 +58,7 @@ const animalIcons = {
   'Other': '🐾'
 };
 
-const yalaCenter = [6.390, 81.380];
+const yalaCenter = [6.5403, 81.3050];
 
 
 
@@ -75,7 +75,7 @@ function ChangeView({ center, zoom }) {
 
 export default function LiveMap({ sightings, sosAlerts, drivers, routes, center, zoom, selectedPark = 'YALA', driverLocations = {} }) {
 
-  const [isSatellite, setIsSatellite] = useState(false);
+  const [isSatellite, setIsSatellite] = useState(true);
 
   const activeJeeps = drivers.map((driver, index) => {
     const profile = driver.driver_profile
@@ -109,8 +109,8 @@ export default function LiveMap({ sightings, sosAlerts, drivers, routes, center,
 
   return (
     <MapContainer
-      center={yalaCenter}
-      zoom={11}
+      center={center || yalaCenter}
+      zoom={zoom || 15}
       scrollWheelZoom={true}
       className="w-full h-full"
     >

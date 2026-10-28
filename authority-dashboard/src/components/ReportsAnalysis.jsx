@@ -9,8 +9,7 @@ import {
   Users,
   Coins,
   ArrowUpRight,
-  Activity,
-  MapPin
+  Activity
 } from 'lucide-react';
 
 export default function ReportsAnalysis({ bookings }) {
@@ -83,8 +82,6 @@ export default function ReportsAnalysis({ bookings }) {
   let saarcRevenue = 0;
   let localRevenue = 0;
 
-  const zoneCounts = {};
-
   const analyzedData = filteredBookings.map(b => {
     const category = getVisitorCategory(b);
     const count = Number(b.tourist_count) || 1;
@@ -101,9 +98,6 @@ export default function ReportsAnalysis({ bookings }) {
       else if (category.label === RATES.local.label) localRevenue += revenue;
     }
 
-    const zoneName = b.zone ? b.zone.toLowerCase() : 'any';
-    zoneCounts[zoneName] = (zoneCounts[zoneName] || 0) + 1;
-
     return {
       ...b,
       touristName: b.tourist?.full_name || 'Anonymous Explorer',
@@ -112,15 +106,6 @@ export default function ReportsAnalysis({ bookings }) {
       ticketRate: category.rate,
       revenue
     };
-  });
-
-  let popularZone = 'N/A';
-  let maxZoneCount = 0;
-  Object.keys(zoneCounts).forEach(z => {
-    if (zoneCounts[z] > maxZoneCount) {
-      maxZoneCount = zoneCounts[z];
-      popularZone = z === 'any' ? 'AI S2R Route' : z === 'east' ? 'East Trail' : 'West Plains';
-    }
   });
 
   const avgGuests = totalBookings > 0 ? (totalGuests / totalBookings).toFixed(1) : 0;
@@ -152,7 +137,7 @@ export default function ReportsAnalysis({ bookings }) {
   const maxWeeklyRevenue = Math.max(...weeklyData.map(d => d.revenue), 1);
 
   const exportToCSV = () => {
-    const headers = ['Booking Date', 'Time Slot', 'Tourist Name', 'Email', 'Guests Count', 'Zone', 'Status', 'Visitor Category', 'Park Ticket Revenue (LKR)'];
+    const headers = ['Booking Date', 'Time Slot', 'Tourist Name', 'Email', 'Guests Count', 'Status', 'Visitor Category', 'Park Ticket Revenue (LKR)'];
 
     const rows = analyzedData.map(b => [
       b.booking_date,
@@ -160,7 +145,6 @@ export default function ReportsAnalysis({ bookings }) {
       `"${b.touristName.replace(/"/g, '""')}"`,
       b.touristEmail,
       b.tourist_count || 1,
-      b.zone || 'Any',
       b.status,
       b.categoryLabel,
       b.revenue
@@ -377,48 +361,33 @@ export default function ReportsAnalysis({ bookings }) {
 
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-
-        <div className="bg-slate-900/40 border border-slate-800 p-5 sm:p-6 rounded-3xl flex items-center gap-4 sm:gap-5">
-          <div className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 p-3.5 sm:p-4 rounded-2xl shrink-0">
-            <MapPin size={24} />
+      <div className="bg-slate-900/40 border border-slate-800 p-5 sm:p-6 rounded-3xl flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="flex items-center gap-3.5 sm:gap-4">
+          <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3.5 sm:p-4 rounded-2xl shrink-0">
+            <FileText size={24} />
           </div>
-          <div className="min-w-0">
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Most Visited Trail</span>
-            <h4 className="text-lg sm:text-xl font-black text-slate-200 mt-1 truncate">{popularZone}</h4>
-            <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5">Highest traffic frequency in selected range</p>
+          <div>
+            <h4 className="font-extrabold text-slate-200 text-xs sm:text-sm">Download Compiled Report</h4>
+            <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">Export data sheets or print printable PDF.</p>
           </div>
         </div>
 
-        <div className="bg-slate-900/40 border border-slate-800 p-5 sm:p-6 rounded-3xl flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="flex items-center gap-3.5 sm:gap-4">
-            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3.5 sm:p-4 rounded-2xl shrink-0">
-              <FileText size={24} />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-slate-200 text-xs sm:text-sm">Download Compiled Report</h4>
-              <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">Export data sheets or print printable PDF.</p>
-            </div>
-          </div>
-
-          <div className="flex gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0">
-            <button
-              onClick={exportToCSV}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 font-bold px-4 sm:px-5 py-3 rounded-2xl text-xs uppercase tracking-wider transition cursor-pointer"
-            >
-              <Download size={14} />
-              Export CSV
-            </button>
-            <button
-              onClick={printPDF}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 bg-linear-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-slate-950 font-black px-4 sm:px-5 py-3 rounded-2xl text-xs uppercase tracking-wider transition cursor-pointer shadow-lg shadow-emerald-500/5"
-            >
-              <Printer size={14} />
-              Print PDF
-            </button>
-          </div>
+        <div className="flex gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0">
+          <button
+            onClick={exportToCSV}
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 font-bold px-4 sm:px-5 py-3 rounded-2xl text-xs uppercase tracking-wider transition cursor-pointer"
+          >
+            <Download size={14} />
+            Export CSV
+          </button>
+          <button
+            onClick={printPDF}
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 bg-linear-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-slate-950 font-black px-4 sm:px-5 py-3 rounded-2xl text-xs uppercase tracking-wider transition cursor-pointer shadow-lg shadow-emerald-500/5"
+          >
+            <Printer size={14} />
+            Print PDF
+          </button>
         </div>
-
       </div>
 
       <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-6">
@@ -456,14 +425,14 @@ export default function ReportsAnalysis({ bookings }) {
                       </span>
                     </td>
                     <td className="py-3.5 px-4">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-2xs ${
                         booking.status === 'COMPLETED'
-                          ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                           : booking.status === 'CONFIRMED'
-                          ? 'bg-blue-500/10 border border-blue-500/20 text-blue-400'
+                          ? 'bg-blue-50 border-blue-200 text-blue-800'
                           : booking.status === 'CANCELLED' || booking.status === 'REJECTED'
-                          ? 'bg-rose-500/10 border border-rose-500/20 text-rose-400'
-                          : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                          ? 'bg-rose-50 border-rose-200 text-rose-800'
+                          : 'bg-amber-50 border-amber-200 text-amber-800'
                       }`}>
                         {booking.status}
                       </span>

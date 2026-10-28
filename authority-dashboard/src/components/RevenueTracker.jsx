@@ -313,35 +313,35 @@ export default function RevenueTracker({ bookings }) {
                       </td>
 
                       <td className="py-3.5 px-4">
-                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase border ${
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase border shadow-2xs ${
                           booking.category.type === 'foreign'
-                            ? 'bg-teal-950/30 border-teal-500/20 text-teal-400'
+                            ? 'bg-teal-50 border-teal-200 text-teal-800'
                             : booking.category.type === 'saarc'
-                              ? 'bg-indigo-950/30 border-indigo-500/20 text-indigo-400'
-                              : 'bg-amber-950/30 border-amber-500/20 text-amber-400'
+                              ? 'bg-indigo-50 border-indigo-200 text-indigo-800'
+                              : 'bg-amber-50 border-amber-300 text-amber-900'
                         }`}>
                           {booking.category.label}
                         </span>
                       </td>
 
                       <td className="py-3.5 px-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black border uppercase tracking-wider ${
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black border uppercase tracking-wider shadow-2xs ${
                           booking.status?.toUpperCase() === 'COMPLETED'
-                            ? 'bg-emerald-950/40 border-emerald-500/20 text-emerald-400'
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                             : booking.status?.toUpperCase() === 'CONFIRMED'
-                              ? 'bg-blue-950/40 border-blue-500/20 text-blue-400'
+                              ? 'bg-blue-50 border-blue-200 text-blue-800'
                               : booking.status?.toUpperCase() === 'PENDING'
-                                ? 'bg-amber-950/40 border-amber-500/20 text-amber-400'
-                                : 'bg-rose-950/40 border-rose-500/20 text-rose-400'
+                                ? 'bg-amber-50 border-amber-200 text-amber-800'
+                                : 'bg-rose-50 border-rose-200 text-rose-800'
                         }`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${
                             booking.status?.toUpperCase() === 'COMPLETED'
-                              ? 'bg-emerald-400'
+                              ? 'bg-emerald-600'
                               : booking.status?.toUpperCase() === 'CONFIRMED'
-                                ? 'bg-blue-400'
+                                ? 'bg-blue-600'
                                 : booking.status?.toUpperCase() === 'PENDING'
-                                  ? 'bg-amber-400 animate-pulse'
-                                  : 'bg-rose-400'
+                                  ? 'bg-amber-600 animate-pulse'
+                                  : 'bg-rose-600'
                           }`}></span>
                           {booking.status}
                         </span>

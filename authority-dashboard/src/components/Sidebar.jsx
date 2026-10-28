@@ -19,7 +19,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, onLogout, isMob
     { id: 'map', label: 'Live Operations Map', icon: Map },
     { id: 'alerts', label: 'Emergency (SOS)', icon: ShieldAlert },
     { id: 'drivers', label: 'Driver Directory', icon: Users },
-    { id: 'routes', label: 'Route Controller', icon: Route },
+    // { id: 'routes', label: 'Route Controller', icon: Route },
     { id: 'tourists', label: 'Tourist Analytics', icon: TrendingUp },
     { id: 'revenue', label: 'Revenue Tracker', icon: Coins },
     { id: 'reports', label: 'Reports & Analysis', icon: FileText },

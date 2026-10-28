@@ -5,7 +5,6 @@ import {
   Phone, 
   Mail, 
   Calendar, 
-  MapPin, 
   MessageSquare, 
   Map, 
   Edit2, 
@@ -262,19 +261,6 @@ export default function UserProfile() {
         return 'Full Day Safari';
       default:
         return slot;
-    }
-  };
-
-  const formatZone = (zone) => {
-    switch (zone?.toLowerCase()) {
-      case 'east':
-        return 'East Trail';
-      case 'west':
-        return 'West Plains';
-      case 'any':
-        return 'AI Recommended Trail';
-      default:
-        return zone;
     }
   };
 
@@ -715,18 +701,10 @@ export default function UserProfile() {
                         {isExpanded && (
                           <div className="px-4 sm:px-6 pb-4 sm:pb-5 pt-1.5 border-t border-gray-50 bg-gray-50/20 animate-fade-in duration-200">
                             
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-5 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-5 text-sm">
                               <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-gray-100 shadow-2xs">
                                 <p className="text-[10px] sm:text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Time Slot</p>
                                 <p className="text-gray-800 font-black text-xs sm:text-sm">{formatTimeSlot(booking.time_slot)}</p>
-                              </div>
-                              
-                              <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-gray-100 shadow-2xs">
-                                <p className="text-[10px] sm:text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Preferred Zone</p>
-                                <p className="text-gray-800 font-black text-xs sm:text-sm flex items-center">
-                                  <MapPin size={13} className="text-green-600 mr-1 shrink-0" />
-                                  {formatZone(booking.zone)}
-                                </p>
                               </div>
 
                               <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-gray-100 shadow-2xs">

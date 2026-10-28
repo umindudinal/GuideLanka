@@ -1,4 +1,10 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
+
+// Prefer IPv4 over IPv6 to avoid ENETUNREACH on networks without IPv6 routing
+if (dns.setDefaultResultOrder) {
+    dns.setDefaultResultOrder('ipv4first');
+}
 
 const sendVerificationEmail = async (email, otp, roleTitle = 'Safari Driver') => {
     console.log(`[EMAIL SENDER] Attempting to send verification email to: ${email} for role: ${roleTitle}`);
@@ -22,6 +28,9 @@ const sendVerificationEmail = async (email, otp, roleTitle = 'Safari Driver') =>
                 host: smtpHost,
                 port: parseInt(smtpPort),
                 secure: parseInt(smtpPort) === 465,
+                connectionTimeout: 5000,
+                greetingTimeout: 5000,
+                socketTimeout: 5000,
                 auth: {
                     user: smtpUser,
                     pass: smtpPass

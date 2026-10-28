@@ -1,6 +1,6 @@
 import { useState, useContext, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Calendar as CalendarIcon, Clock, Users, Map as MapIcon, ShieldCheck, CheckCircle, Loader2, Globe, Info, Coins } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Users, ShieldCheck, CheckCircle, Loader2, Globe, Info, Coins } from 'lucide-react';
 import LoginModal from '../auth/LoginModal';
 import AlertModal from '../common/AlertModal';
 import { AuthContext } from '../../context/AuthContext';
@@ -34,7 +34,6 @@ export default function BookingForm() {
   const [date, setDate] = useState('');
   const [timeSlot, setTimeSlot] = useState('');
   const [touristsCount, setTouristsCount] = useState('');
-  const [zone, setZone] = useState('any');
   const [visitorType, setVisitorType] = useState('foreign');
   const [driverRate, setDriverRate] = useState(12500);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -189,7 +188,6 @@ export default function BookingForm() {
             driver_id: selectedDriverId,
             booking_date: date,
             time_slot: timeSlot + '|' + visitorType,
-            zone: zone,
             tourist_count: Number(touristsCount) || 1,
             status: 'PENDING'
           }
@@ -343,26 +341,6 @@ export default function BookingForm() {
                 onChange={(e) => setTouristsCount(e.target.value)}
                 className="w-full pl-11 pr-4 py-3 sm:py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600 focus:bg-white text-sm font-medium text-gray-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
               />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Preferred Zone</label>
-          <div className="relative">
-            <MapIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-            <select
-              value={zone}
-              disabled={!!activeBooking}
-              onChange={(e) => setZone(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 sm:py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600 focus:bg-white text-sm font-medium text-gray-700 transition appearance-none disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <option value="any">Let AI Recommend (S2R Algorithm)</option>
-              <option value="east">East Trail</option>
-              <option value="west">West Plains</option>
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
-              <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
             </div>
           </div>
         </div>

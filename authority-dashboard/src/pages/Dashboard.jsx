@@ -38,22 +38,22 @@ export default function Dashboard({ user, onUserUpdate, onLogout }) {
   const [bookings, setBookings] = useState([]);
   const [tourists, setTourists] = useState([]);
 
-  const [selectedPark, setSelectedPark] = useState('YALA');
-  const [mapCenter, setMapCenter] = useState([6.390, 81.380]);
-  const [mapZoom, setMapZoom] = useState(11);
+  const [selectedPark, setSelectedPark] = useState('YALA_BLOCK_5');
+  const [mapCenter, setMapCenter] = useState([6.5403, 81.3050]);
+  const [mapZoom, setMapZoom] = useState(15);
   const [driverLocations, setDriverLocations] = useState({});
 
   const handleParkChange = (park) => {
     setSelectedPark(park);
     if (park === 'YALA_BLOCK_5') {
-      setMapCenter([6.450, 81.445]);
-      setMapZoom(13);
+      setMapCenter([6.5403, 81.3050]);
+      setMapZoom(15);
     } else if (park === 'YALA_BLOCK_6') {
       setMapCenter([6.340, 81.230]);
       setMapZoom(13);
     } else {
-      setMapCenter([6.390, 81.380]);
-      setMapZoom(11);
+      setMapCenter([6.5403, 81.3050]);
+      setMapZoom(15);
     }
   };
 

@@ -361,7 +361,6 @@ export default function TouristAnalytics({ bookings, tourists }) {
                 <th className="py-3.5 px-4">Assigned Driver</th>
                 <th className="py-3.5 px-4">Safari Date</th>
                 <th className="py-3.5 px-4">Time Slot & Type</th>
-                <th className="py-3.5 px-4">Preferred Zone</th>
                 <th className="py-3.5 px-4 text-center">Guests</th>
                 <th className="py-3.5 px-4 rounded-tr-2xl text-right">Status</th>
               </tr>
@@ -370,7 +369,7 @@ export default function TouristAnalytics({ bookings, tourists }) {
             <tbody className="divide-y divide-slate-850/60">
               {filteredBookings.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="py-8 text-center text-slate-500 italic">No bookings found matching filters.</td>
+                  <td colSpan="7" className="py-8 text-center text-slate-500 italic">No bookings found matching filters.</td>
                 </tr>
               ) : (
                 filteredBookings.map((booking) => (
@@ -406,19 +405,17 @@ export default function TouristAnalytics({ bookings, tourists }) {
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-4 text-slate-400 uppercase tracking-wider">{booking.zone || 'Any'}</td>
-
                     <td className="py-3.5 px-4 text-center font-bold text-slate-300">{booking.tourist_count || 1}</td>
 
                     <td className="py-3.5 px-4 text-right">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-2xs ${
                         booking.status === 'COMPLETED'
-                          ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                           : booking.status === 'CONFIRMED'
-                          ? 'bg-blue-500/10 border border-blue-500/20 text-blue-400'
+                          ? 'bg-blue-50 border-blue-200 text-blue-800'
                           : booking.status === 'REJECTED' || booking.status === 'CANCELLED'
-                          ? 'bg-rose-500/10 border border-rose-500/20 text-rose-400'
-                          : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                          ? 'bg-rose-50 border-rose-200 text-rose-800'
+                          : 'bg-amber-50 border-amber-200 text-amber-800'
                       }`}>
                         {booking.status || 'PENDING'}
                       </span>

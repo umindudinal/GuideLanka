@@ -39,7 +39,7 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
 
   Timer? _sightingsTimer;
 
-  bool _isSatelliteView = false;
+  bool _isSatelliteView = true;
   List<Polyline>? _roadPolylines;
 
   Map<String, dynamic>? _selectedSighting;
@@ -1187,19 +1187,6 @@ class _SafariMapScreenState extends State<SafariMapScreen> with SingleTickerProv
                                 ? _mapController.camera.zoom
                                 : 17.5;
                             _mapController.move(_currentLocation!, targetZoom);
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 8),
-
-                      _buildMapControlButton(
-                        icon: Icons.alt_route_rounded,
-                        tooltip: 'Show Roads',
-                        isActive: true,
-                        activeColor: const Color(0xFFFFB74D),
-                        onPressed: () {
-                          if (_isMapReady) {
-                            _mapController.move(_defaultLocation, 16.0);
                           }
                         },
                       ),

@@ -78,7 +78,7 @@ export default function Navbar() {
             <Link to="/rules" className={getLinkClass('/rules')}>Park Rules</Link>
             <Link to="/drivers" className={getLinkClass('/drivers')}>Drivers</Link>
             <Link to="/gallery" className={getLinkClass('/gallery')}>Gallery</Link>
-            <Link to="/map" className={getLinkClass('/map')}>Live Map</Link>
+            {/* <Link to="/map" className={getLinkClass('/map')}>Live Map</Link> */}
           </div>
 
           {}

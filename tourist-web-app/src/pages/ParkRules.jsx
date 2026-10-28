@@ -410,7 +410,7 @@ export default function ParkRules() {
           </div>
         )}
 
-        <div className="bg-white rounded-3xl border border-gray-200 p-8 shadow-sm hover:shadow-md transition duration-300 mb-16">
+        {/* <div className="bg-white rounded-3xl border border-gray-200 p-8 shadow-sm hover:shadow-md transition duration-300 mb-16">
           <div className="flex items-center gap-3 mb-6 border-b border-gray-100 pb-5">
             <div className="p-3 bg-green-50 text-green-700 rounded-2xl border border-green-100">
               <Award size={24} className="animate-bounce" />
@@ -543,7 +543,7 @@ export default function ParkRules() {
               )}
             </div>
           )}
-        </div>
+        </div> */}
 
         <div className="bg-white rounded-3xl p-8 md:p-10 shadow-sm text-gray-800 border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="flex items-start gap-4 flex-1">
