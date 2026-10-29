@@ -115,7 +115,7 @@ export default function TouristAnalytics({ bookings, tourists }) {
                         (visitorTypeFilter === 'LOCAL' && type === 'local');
 
     return matchesSearch && matchesStatus && matchesType;
-  });
+  }).sort((a, b) => new Date(b.created_at || b.booking_date) - new Date(a.created_at || a.booking_date));
 
   return (
     <div className="space-y-6 sm:space-y-8 font-sans">

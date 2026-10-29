@@ -208,7 +208,7 @@ export default function Dashboard({ user, onUserUpdate, onLogout }) {
       const { data: bookingsData, error: bErr } = await supabase
         .from('bookings')
         .select('*, tourist:users!tourist_id(full_name, email)')
-        .order('booking_date', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (!bErr && bookingsData) {
         const enrichedBookings = bookingsData.map(b => {

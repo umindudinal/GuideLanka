@@ -1,8 +1,21 @@
 import { useState, useContext, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Calendar as CalendarIcon, Clock, Users, ShieldCheck, CheckCircle, Loader2, Globe, Info, Coins } from 'lucide-react';
+import { 
+  Calendar as CalendarIcon, 
+  Clock, 
+  Users, 
+  ShieldCheck, 
+  CheckCircle, 
+  Loader2, 
+  Globe, 
+  Info, 
+  Coins, 
+  MessageSquare, 
+  User 
+} from 'lucide-react';
 import LoginModal from '../auth/LoginModal';
 import AlertModal from '../common/AlertModal';
+import BookingSuccessModal from './BookingSuccessModal';
 import { AuthContext } from '../../context/AuthContext';
 import { supabase } from '../../services/supabase';
 
@@ -14,6 +27,9 @@ export default function BookingForm() {
     message: '',
     type: 'warning'
   });
+
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successBookingData, setSuccessBookingData] = useState(null);
 
   const showAlert = (message, type = 'warning', title = '') => {
     setAlertConfig({
@@ -196,14 +212,26 @@ export default function BookingForm() {
 
       if (bookingError) throw bookingError;
 
-      const newBookingId = bookingData[0].id;
-      navigate(`/chat/${newBookingId}`, {
-        state: {
-          driverName: selectedDriverName,
-          driverId: selectedDriverId,
-          touristId: touristId
-        }
+      const newBooking = bookingData[0];
+
+      // Show confirmation dialog with options instead of forceful auto-navigation to chat
+      setSuccessBookingData({
+        id: newBooking.id,
+        booking_date: date,
+        time_slot: timeSlot,
+        tourist_count: Number(touristsCount) || 1,
+        driverName: selectedDriverName,
+        driverId: selectedDriverId,
+        touristId: touristId,
+        totalCostLkr: totalCostLkr
       });
+      setShowSuccessModal(true);
+      setActiveBooking(newBooking);
+
+      // Reset inputs
+      setDate('');
+      setTimeSlot('');
+      setTouristsCount('');
 
     } catch (error) {
       console.error("System Error:", error.message);
@@ -245,13 +273,24 @@ export default function BookingForm() {
                 To ensure quality service, GuideLanka policy allows tourists to book only one safari guide at a time.
                 You can book a new driver once your current trip is finished.
               </p>
-              <button
-                type="button"
-                onClick={() => navigate(`/chat/${activeBooking.id}`)}
-                className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition shadow-sm active:scale-95 flex items-center justify-center gap-2"
-              >
-                Go to Current Chat & Coordinator
-              </button>
+              <div className="flex flex-wrap gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/chat/${activeBooking.id}`)}
+                  className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm transition shadow-sm active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <MessageSquare size={14} />
+                  Chat with Guide (Optional)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/profile')}
+                  className="w-full sm:w-auto bg-white hover:bg-amber-100/60 text-amber-900 border border-amber-300 font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm transition shadow-sm active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <User size={14} />
+                  View My Bookings in Profile
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -388,17 +427,28 @@ export default function BookingForm() {
 
           <div className="flex items-center text-xs sm:text-sm text-blue-700 mb-4 sm:mb-6 bg-blue-50/65 border border-blue-100 p-3 sm:p-4 rounded-2xl">
             <ShieldCheck className="text-blue-600 mr-2.5 shrink-0" size={20} />
-            <span>Once booked, you will be redirected to chat with {selectedDriverName ? selectedDriverName.split(' ')[0] : 'your driver'} to coordinate pickup.</span>
+            <span>Your safari booking request will be submitted to {selectedDriverName ? selectedDriverName.split(' ')[0] : 'your driver'}. You can optionally chat with your guide anytime.</span>
           </div>
 
           {activeBooking ? (
-            <button
-              type="button"
-              onClick={() => navigate(`/chat/${activeBooking.id}`)}
-              className="w-full bg-linear-to-r from-amber-600 to-orange-500 hover:from-amber-700 hover:to-orange-600 text-white font-bold py-3.5 sm:py-4 rounded-2xl text-base sm:text-lg transition shadow-md hover:shadow-lg transform active:scale-95 flex justify-center items-center cursor-pointer"
-            >
-              Go to Current Chat & Coordinator
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => navigate(`/chat/${activeBooking.id}`)}
+                className="flex-1 bg-linear-to-r from-amber-600 to-orange-500 hover:from-amber-700 hover:to-orange-600 text-white font-bold py-3.5 sm:py-4 rounded-2xl text-sm sm:text-base transition shadow-md hover:shadow-lg transform active:scale-95 flex justify-center items-center gap-2 cursor-pointer"
+              >
+                <MessageSquare size={18} />
+                Chat with Guide (Optional)
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/profile')}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3.5 sm:py-4 rounded-2xl text-sm sm:text-base transition border border-gray-250 transform active:scale-95 flex justify-center items-center gap-2 cursor-pointer"
+              >
+                <User size={18} />
+                View in My Profile
+              </button>
+            </div>
           ) : (
             <button
               type="button"
@@ -409,7 +459,7 @@ export default function BookingForm() {
               {isSubmitting ? (
                 <><Loader2 className="animate-spin mr-2" size={20} /> Processing...</>
               ) : (
-                "Confirm Booking & Start Chat"
+                "Confirm Safari Reservation"
               )}
             </button>
           )}
@@ -424,6 +474,12 @@ export default function BookingForm() {
         title={alertConfig.title}
         message={alertConfig.message}
         type={alertConfig.type}
+      />
+
+      <BookingSuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        bookingData={successBookingData}
       />
     </div>
   );

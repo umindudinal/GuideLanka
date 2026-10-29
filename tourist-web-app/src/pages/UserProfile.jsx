@@ -103,7 +103,7 @@ export default function UserProfile() {
           .from('bookings')
           .select('*')
           .eq('tourist_id', profile.id)
-          .order('booking_date', { ascending: false });
+          .order('created_at', { ascending: false });
 
         if (bookingsError) throw bookingsError;
 
